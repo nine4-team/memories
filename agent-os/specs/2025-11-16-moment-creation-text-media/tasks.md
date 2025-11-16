@@ -36,12 +36,20 @@
     - After backend responds with generated title, present inline edit affordance before navigating away.
     - Store `title_generated_at` timestamp and raw transcript locally for future regen.
 
+## Phase 3b – Offline Capture & Sync
+11. **Offline queue data layer**
+    - Add persistent queue model storing transcript, metadata, media URIs, and deterministic local IDs.
+    - Ensure Save writes to the queue immediately when offline (or when uploads fail) and marks status for UI.
+12. **Sync engine & status UX**
+    - Build background/foreground sync worker that retries uploads with exponential backoff and telemetry.
+    - Surface queued/syncing/error states in the capture confirmation UI plus manual “Sync now” action.
+
 ## Phase 4 – Post-Save and QA
-11. **Navigation & confirmation states**
+13. **Navigation & confirmation states**
     - Route to Moment detail screen on success; display toast summarizing uploads and metadata capture status.
     - Handle cancellation/discard prompts.
-12. **Accessibility & localization review**
+14. **Accessibility & localization review**
     - Verify toggles, tags, and thumbnails meet accessibility and localization standards.
-13. **Testing & instrumentation**
-    - Add Riverpod unit/widget tests for capture view, dictation handler, media limits, and save pipeline.
-    - Instrument analytics/logging for dictation start/stop, media additions, errors, and save outcomes.
+15. **Testing & instrumentation**
+    - Add Riverpod unit/widget tests for capture view, dictation handler, media limits, save pipeline, and offline queue/sync flows.
+    - Instrument analytics/logging for dictation start/stop, media additions, errors, save outcomes, and queue flush results.

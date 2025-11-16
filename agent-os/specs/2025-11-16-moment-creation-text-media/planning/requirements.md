@@ -48,6 +48,7 @@ No visual assets provided.
 - Save triggers media uploads to Supabase Storage; passive timestamp and location capture when available.
 - Allow subtle freeform tagging and quick toggles to switch between Moment/Story/Memento capture types.
 - Store raw voice transcript alongside LLM-generated title.
+- Provide offline-safe capture by persisting queued Moments locally and syncing automatically when connectivity returns, with visible queued/sync/error statuses.
 
 ### Reusability Opportunities
 - Investigate reusable tagging controls and shared capture UI patterns once they exist.
@@ -63,3 +64,4 @@ No visual assets provided.
 - LLM service generates titles from transcripts; store transcripts for future regeneration.
 - Supabase Storage handles media uploads post-save; metadata stored in PostgreSQL with timestamp/location fields.
 - Need lightweight tagging data model and passive location capture respecting permissions.
+- Implement persistent offline queue storage plus sync workers that resume uploads and reconcile server IDs once online.

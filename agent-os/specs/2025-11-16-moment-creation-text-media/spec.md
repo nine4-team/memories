@@ -7,6 +7,7 @@ Deliver a unified, dictation-first capture experience that lets users record a M
 - As a parent on the go, I want to hold down a single capture control, dictate what happened, and snap a few photos without dealing with multiple screens so that I never miss a moment.
 - As a storyteller, I want the app to draft a sensible title from what I said while still letting me edit it afterward so I can keep the flow uninterrupted but maintain accuracy.
 - As a memory keeper, I want the capture form to remember when and where I was, plus let me tag the memory, so I can organize everything without manual data entry.
+- As a traveler who is often offline, I want the app to queue whatever I captured so nothing is lost and everything syncs automatically when service returns.
 
 ## Experience Overview
 - Launching capture opens a full-screen Flutter sheet centered on the in-house dictation plugin.
@@ -43,6 +44,13 @@ Deliver a unified, dictation-first capture experience that lets users record a M
 - After Save completes, navigate to the relevant detail screen and surface a toast summarizing uploads.
 - Offer immediate title edit within the confirmation state, pulling from the generated title.
 
+### Offline Capture & Queueing
+- Allow users to complete the full capture experience without an internet connection; Save persists all transcript text, selected media (paths + metadata), and tags into a durable local queue.
+- Show clear status chips (“Queued”, “Syncing”, “Needs Attention”) on the confirmation state so users know the Moment is safe even if uploads are pending.
+- Automatically retry queued Moments once connectivity is restored; retries must be resumable (partial uploads continue) and respect media caps.
+- Expose a manual “Sync now” action inside the capture sheet overflow for edge cases where automatic retry is delayed.
+- Block duplicate submissions by tagging queue entries with deterministic local IDs that map to server IDs after sync.
+
 ### Validation & Error Handling
 - Ensure at least one of: transcript text, photo, video, or tag exists before enabling Save.
 - Show inline errors for failed uploads, transcript generation issues, or location denials. Allow retry without losing other data.
@@ -52,11 +60,13 @@ Deliver a unified, dictation-first capture experience that lets users record a M
 - Extend `moments` table to include `raw_transcript text`, `generated_title text`, `title_generated_at timestamptz`, `tags text[]`, `captured_location geography(Point,4326)` (nullable), `location_status text`, and `capture_type enum('moment','story','memento')`.
 - Media arrays (`photo_urls`, `video_urls`) continue to store Supabase Storage paths. Ensure server-side functions clean up orphaned files on deletion.
 - Supabase Edge Function handles LLM title generation to keep keys server-side; client only sends transcript + memory type.
+- Maintain a local persistent queue (e.g., `QueuedMoment` Hive box/SQLite table) that stores payloads, local media URIs, retry counts, and timestamps until server confirmation arrives.
 
 ## Technical Considerations
 - Riverpod providers manage capture state, plugin controllers, and Save actions; isolate dictation lifecycle to avoid memory leaks.
 - Implement optimistic UI while uploads run, but block duplicate submissions.
 - Use Supabase Storage signed URLs for previews; cache in-memory until the Moment detail view refreshes.
+- Provide a foreground service/background task that watches connectivity changes and flushes queued Moments with exponential backoff and telemetry so failures are diagnosable.
 - Logging: trace dictation start/stop, media adds/removals, Save success/failure for analytics.
 - Localization-ready strings (title suggestions, helper text) per conventions standard.
 
