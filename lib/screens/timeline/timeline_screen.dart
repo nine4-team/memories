@@ -76,7 +76,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     );
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => MomentDetailScreen(momentId: momentId),
+        builder: (context) => MomentDetailScreen(
+          momentId: momentId,
+          heroTag: hasMedia ? 'moment_thumbnail_$momentId' : null,
+        ),
       ),
     );
   }

@@ -114,34 +114,38 @@ class MomentCard extends ConsumerWidget {
       future: signedUrl,
       builder: (context, snapshot) {
         if (snapshot.hasData) {
+          // Hero tag for transition animation to detail view
+          final heroTag = 'moment_thumbnail_${moment.id}';
           return Semantics(
             label: media.isPhoto ? 'Photo thumbnail' : 'Video thumbnail',
             image: true,
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    snapshot.data!,
-                    width: thumbnailSize,
-                    height: thumbnailSize,
-                    fit: BoxFit.cover,
-                    // Optimize image caching: cache at 2x resolution for retina displays
-                    cacheWidth: (thumbnailSize * 2).toInt(),
-                    cacheHeight: (thumbnailSize * 2).toInt(),
-                    errorBuilder: (context, error, stackTrace) {
-                      return Semantics(
-                        label: 'Failed to load thumbnail',
-                        child: Container(
-                          width: thumbnailSize,
-                          height: thumbnailSize,
-                          color: Theme.of(context).colorScheme.surfaceVariant,
-                          child: const Icon(Icons.broken_image),
-                        ),
-                      );
-                    },
+            child: Hero(
+              tag: heroTag,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      snapshot.data!,
+                      width: thumbnailSize,
+                      height: thumbnailSize,
+                      fit: BoxFit.cover,
+                      // Optimize image caching: cache at 2x resolution for retina displays
+                      cacheWidth: (thumbnailSize * 2).toInt(),
+                      cacheHeight: (thumbnailSize * 2).toInt(),
+                      errorBuilder: (context, error, stackTrace) {
+                        return Semantics(
+                          label: 'Failed to load thumbnail',
+                          child: Container(
+                            width: thumbnailSize,
+                            height: thumbnailSize,
+                            color: Theme.of(context).colorScheme.surfaceVariant,
+                            child: const Icon(Icons.broken_image),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
                 // Video duration pill
                 if (media.isVideo)
                   Positioned(
@@ -168,9 +172,10 @@ class MomentCard extends ConsumerWidget {
                           ),
                         ),
                       ),
-                    ),
                   ),
-              ],
+                ),
+                ],
+              ),
             ),
           );
         } else if (snapshot.hasError) {

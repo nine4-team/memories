@@ -148,6 +148,14 @@ class TimelineFeedNotifier extends _$TimelineFeedNotifier {
     await loadInitial(searchQuery: searchQuery);
   }
 
+  /// Remove a moment from the timeline (optimistic update)
+  /// 
+  /// [momentId] is the ID of the moment to remove
+  void removeMoment(String momentId) {
+    final updatedMoments = state.moments.where((m) => m.id != momentId).toList();
+    state = state.copyWith(moments: updatedMoments);
+  }
+
   Future<void> _fetchPage({
     required TimelineCursor cursor,
     String? searchQuery,

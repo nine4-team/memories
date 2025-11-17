@@ -107,6 +107,46 @@ class TimelineAnalyticsService {
     _logEvent('timeline_search_clear', {});
   }
 
+  /// Track moment detail view
+  /// 
+  /// [momentId] is the ID of the moment being viewed
+  /// [source] is where the view originated from (e.g., 'timeline', 'search', 'share_link')
+  void trackMomentDetailView(String momentId, {String? source}) {
+    _logEvent('moment_detail_view', {
+      'moment_id': momentId,
+      if (source != null) 'source': source,
+    });
+  }
+
+  /// Track moment share action
+  /// 
+  /// [momentId] is the ID of the moment being shared
+  /// [shareToken] is the public share token (if available)
+  void trackMomentShare(String momentId, {String? shareToken}) {
+    _logEvent('moment_detail_share', {
+      'moment_id': momentId,
+      if (shareToken != null) 'share_token': shareToken,
+    });
+  }
+
+  /// Track moment edit action from detail view
+  /// 
+  /// [momentId] is the ID of the moment being edited
+  void trackMomentDetailEdit(String momentId) {
+    _logEvent('moment_detail_edit', {
+      'moment_id': momentId,
+    });
+  }
+
+  /// Track moment delete action from detail view
+  /// 
+  /// [momentId] is the ID of the moment being deleted
+  void trackMomentDetailDelete(String momentId) {
+    _logEvent('moment_detail_delete', {
+      'moment_id': momentId,
+    });
+  }
+
   /// Hash a search query for privacy
   /// 
   /// Uses SHA-256 to create a consistent hash of the query
