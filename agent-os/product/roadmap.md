@@ -4,7 +4,7 @@
 
 1. [x] **User Authentication & Profile** — Implemented (2025-01-17). Supabase Auth + profiles complete; see `agent-os/specs/2025-11-16-user-auth-and-profile/tasks.md` and `docs/release_notes_auth.md`. `XS`
 
-2. [ ] **Moment Creation (Text + Media)** — Build form to create Moments with title (required), text description (optional), and ability to upload photos/videos from device; store media in Supabase Storage. `S`
+2. [x] **Moment Creation (Text + Media)** — Implemented (2025-11-17). Core capture flow with title generation, media upload to Supabase Storage, offline queue & sync, location capture, and basic detail navigation complete; see `agent-os/specs/2025-11-16-moment-creation-text-media/implementation/remaining-work.md`. `S`
 
 3. [ ] **Moment List & Timeline View** — Display all user's Moments in reverse chronological feed with date grouping headers; show thumbnails for media-rich moments and text preview for text-only moments. `S`
 
