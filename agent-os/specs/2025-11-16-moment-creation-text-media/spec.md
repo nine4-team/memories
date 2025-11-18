@@ -57,7 +57,10 @@ Deliver a unified, dictation-first capture experience that lets users record a M
 - Respect accessibility: minimum hit areas, voice-over labels for toggles and thumbnails.
 
 ## Data & Storage
-- Extend `moments` table to include `raw_transcript text`, `generated_title text`, `title_generated_at timestamptz`, `tags text[]`, `captured_location geography(Point,4326)` (nullable), `location_status text`, and `capture_type enum('moment','story','memento')`.
+- All memory types (Moments, Stories, and Mementos) are stored in the unified `memories` table with a `memory_type` field (`memory_type_enum` enum) that differentiates rows.
+- The `memories` table includes `raw_transcript text`, `generated_title text`, `title_generated_at timestamptz`, `tags text[]`, `captured_location geography(Point,4326)` (nullable), `location_status text`, `memory_type memory_type_enum` enum('moment','story','memento'), `input_text text` (raw user text from capture UI), and `processed_text text` (LLM-processed text, nullable until processing completes).
+- Moments are filtered via `memory_type = 'moment'` when querying the `memories` table.
+- **Text Model**: `input_text` stores raw user input from the capture UI. `processed_text` stores LLM-processed cleaned descriptions (for moments) or narratives (for stories) once processing completes. On initial save, `processed_text` is NULL.
 - Media arrays (`photo_urls`, `video_urls`) continue to store Supabase Storage paths. Ensure server-side functions clean up orphaned files on deletion.
 - Supabase Edge Function handles LLM title generation to keep keys server-side; client only sends transcript + memory type.
 - Maintain a local persistent queue (e.g., `QueuedMoment` Hive box/SQLite table) that stores payloads, local media URIs, retry counts, and timestamps until server confirmation arrives.

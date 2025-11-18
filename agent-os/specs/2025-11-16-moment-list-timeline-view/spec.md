@@ -25,10 +25,10 @@ Deliver a performant, orientation-friendly timeline that streams a user’s Mome
 
 ### Cards & Content Display
 - Primary thumbnail occupies the left third (mobile) or a fixed aspect ratio top panel (tablet). Always choose the first available media asset; if none exist, show a text-only badge.
-- Title: single line, ellipsized. If no generated title exists, fall back to “Untitled Moment”.
-- Body preview: up to two lines, summarizing description/transcript text.
+- Title: single line, ellipsized. If no generated title exists, fall back to "Untitled Moment".
+- Body preview: up to two lines, summarizing text using display text logic (prefer `processed_text`, fallback to `input_text`).
 - Metadata row: capture date (relative + absolute), tag chips (max 3 visible), and indicators for videos (e.g., duration pill) when the thumbnail is a video frame.
-- Accessibility: 44px minimum tap target, VoiceOver labels describing “Moment titled … captured Month Day, Year.”
+- Accessibility: 44px minimum tap target, VoiceOver labels describing "Moment titled … captured Month Day, Year."
 
 ### Search & Filtering
 - Search bar accepts free text, debounced at 300 ms. Submit triggers full-text search across: Moment titles, descriptions, transcripts, plus Story/Memento narratives so cross-memory context appears in results (even though cards only represent Moments for this view).

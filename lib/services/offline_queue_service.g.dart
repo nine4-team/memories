@@ -9,7 +9,11 @@ part of 'offline_queue_service.dart';
 String _$offlineQueueServiceHash() =>
     r'3d43befb266fef7cba4e17ce61cfc9ab365c7975';
 
-/// Service for managing offline queue of moments
+/// Service for managing offline queue of moments and mementos
+///
+/// Both moments and mementos are stored in the same queue since they share
+/// the same save pipeline and data structure. The memory type is tracked
+/// via the QueuedMoment.memoryType field.
 ///
 /// Copied from [offlineQueueService].
 @ProviderFor(offlineQueueService)

@@ -17,11 +17,8 @@ class QueuedMoment {
   /// Memory type
   final String memoryType;
 
-  /// Raw transcript
-  final String? rawTranscript;
-
-  /// Description
-  final String? description;
+  /// Input text from dictation or manual entry (canonical field)
+  final String? inputText;
 
   /// Photo file paths (local)
   final List<String> photoPaths;
@@ -65,8 +62,7 @@ class QueuedMoment {
   QueuedMoment({
     required this.localId,
     required this.memoryType,
-    this.rawTranscript,
-    this.description,
+    this.inputText,
     this.photoPaths = const [],
     this.videoPaths = const [],
     this.tags = const [],
@@ -91,8 +87,7 @@ class QueuedMoment {
     return QueuedMoment(
       localId: localId,
       memoryType: state.memoryType.apiValue,
-      rawTranscript: state.rawTranscript,
-      description: state.description,
+      inputText: state.inputText,
       photoPaths: List.from(state.photoPaths),
       videoPaths: List.from(state.videoPaths),
       tags: List.from(state.tags),
@@ -108,8 +103,7 @@ class QueuedMoment {
   CaptureState toCaptureState() {
     return CaptureState(
       memoryType: _parseMemoryType(memoryType),
-      rawTranscript: rawTranscript,
-      description: description,
+      inputText: inputText,
       photoPaths: List.from(photoPaths),
       videoPaths: List.from(videoPaths),
       tags: List.from(tags),
@@ -138,8 +132,7 @@ class QueuedMoment {
   QueuedMoment copyWith({
     String? localId,
     String? memoryType,
-    String? rawTranscript,
-    String? description,
+    String? inputText,
     List<String>? photoPaths,
     List<String>? videoPaths,
     List<String>? tags,
@@ -157,8 +150,7 @@ class QueuedMoment {
     return QueuedMoment(
       localId: localId ?? this.localId,
       memoryType: memoryType ?? this.memoryType,
-      rawTranscript: rawTranscript ?? this.rawTranscript,
-      description: description ?? this.description,
+      inputText: inputText ?? this.inputText,
       photoPaths: photoPaths ?? this.photoPaths,
       videoPaths: videoPaths ?? this.videoPaths,
       tags: tags ?? this.tags,
@@ -195,8 +187,7 @@ class QueuedMoment {
     return {
       'localId': localId,
       'memoryType': memoryType,
-      'rawTranscript': rawTranscript,
-      'description': description,
+      'inputText': inputText,
       'photoPaths': photoPaths,
       'videoPaths': videoPaths,
       'tags': tags,
@@ -218,8 +209,7 @@ class QueuedMoment {
     return QueuedMoment(
       localId: json['localId'] as String,
       memoryType: json['memoryType'] as String,
-      rawTranscript: json['rawTranscript'] as String?,
-      description: json['description'] as String?,
+      inputText: json['inputText'] as String?,
       photoPaths: List<String>.from(json['photoPaths'] as List? ?? []),
       videoPaths: List<String>.from(json['videoPaths'] as List? ?? []),
       tags: List<String>.from(json['tags'] as List? ?? []),

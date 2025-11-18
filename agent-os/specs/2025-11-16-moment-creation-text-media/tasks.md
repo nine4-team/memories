@@ -2,7 +2,7 @@
 
 ## Phase 1 – Architecture & Data Preparation
 - [x] 1. **Schema updates for capture metadata**
-   - Extend `moments` table with `raw_transcript`, `generated_title`, `title_generated_at`, `tags text[]`, `captured_location`, `location_status`, `capture_type`.
+   - Extend `memories` table (unified table for all memory types) with `raw_transcript`, `generated_title`, `title_generated_at`, `tags text[]`, `captured_location`, `location_status`, `capture_type` (`memory_capture_type` enum).
    - Add necessary enums and indexes (e.g., tags GIN, capture_type enum).
 - [x] 2. **Supabase Edge Function for title generation**
    - Define API contract (inputs: transcript, memory type; outputs: title, status).

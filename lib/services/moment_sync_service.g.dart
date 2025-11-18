@@ -6,9 +6,12 @@ part of 'moment_sync_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$momentSyncServiceHash() => r'03dcaa2348ef21398d49d29fe778b617f7a8de48';
+String _$momentSyncServiceHash() => r'f2193e71ca69ad7f2ba631935a36f1d5c9b5042a';
 
-/// Service for syncing queued moments to the server
+/// Service for syncing queued moments and mementos to the server
+///
+/// Handles automatic retry with exponential backoff for all memory types
+/// stored in the offline queue (moments and mementos).
 ///
 /// Copied from [momentSyncService].
 @ProviderFor(momentSyncService)

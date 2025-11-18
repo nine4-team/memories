@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/memory_type.dart';
 import 'package:memories/providers/supabase_provider.dart';
 import 'package:memories/services/connectivity_service.dart';
 import 'package:memories/providers/timeline_analytics_provider.dart';
@@ -72,14 +73,16 @@ class TimelineFeedState {
   }
 }
 
-/// Provider for timeline feed state
+/// Provider for timeline feed state with optional memory type filtering
 @riverpod
 class TimelineFeedNotifier extends _$TimelineFeedNotifier {
   static const int _batchSize = 25;
   int _currentPageNumber = 1;
+  MemoryType? _memoryTypeFilter;
 
   @override
-  TimelineFeedState build() {
+  TimelineFeedState build([MemoryType? memoryType]) {
+    _memoryTypeFilter = memoryType;
     return const TimelineFeedState(state: TimelineState.initial);
   }
 
@@ -102,7 +105,10 @@ class TimelineFeedNotifier extends _$TimelineFeedNotifier {
       ref.read(timelineAnalyticsServiceProvider).trackError(
         e,
         'initial_load',
-        context: {'search_query': searchQuery?.isNotEmpty ?? false},
+        context: {
+          'search_query': searchQuery?.isNotEmpty ?? false,
+          'memory_type': _memoryTypeFilter?.apiValue,
+        },
       );
       state = state.copyWith(
         state: TimelineState.error,
@@ -133,7 +139,10 @@ class TimelineFeedNotifier extends _$TimelineFeedNotifier {
       ref.read(timelineAnalyticsServiceProvider).trackError(
         e,
         'pagination',
-        context: {'page_number': _currentPageNumber},
+        context: {
+          'page_number': _currentPageNumber,
+          'memory_type': _memoryTypeFilter?.apiValue,
+        },
       );
       state = state.copyWith(
         state: TimelineState.error,
@@ -179,6 +188,11 @@ class TimelineFeedNotifier extends _$TimelineFeedNotifier {
 
     if (searchQuery != null && searchQuery.trim().isNotEmpty) {
       params['p_search_query'] = searchQuery.trim();
+    }
+
+    // Add memory type filter if specified
+    if (_memoryTypeFilter != null) {
+      params['p_memory_type'] = _memoryTypeFilter!.apiValue;
     }
 
     final response = await supabase.rpc('get_timeline_feed', params: params);
@@ -227,6 +241,12 @@ class TimelineFeedNotifier extends _$TimelineFeedNotifier {
     );
   }
 }
+
+/// Convenience provider for unified timeline (all memory types)
+final unifiedTimelineFeedNotifierProvider = timelineFeedNotifierProvider(null);
+
+/// Convenience provider for Story-only timeline
+final storyTimelineFeedNotifierProvider = timelineFeedNotifierProvider(MemoryType.story);
 
 /// Provider for search query state
 @riverpod

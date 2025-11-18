@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:memories/models/memory_type.dart';
 
 /// Analytics service for timeline events
 /// 
@@ -144,6 +145,65 @@ class TimelineAnalyticsService {
   void trackMomentDetailDelete(String momentId) {
     _logEvent('moment_detail_delete', {
       'moment_id': momentId,
+    });
+  }
+
+  /// Track unified feed tab switch
+  /// 
+  /// [fromTab] is the previous tab (null for 'all')
+  /// [toTab] is the new tab (null for 'all')
+  void trackUnifiedFeedTabSwitch(MemoryType? fromTab, MemoryType? toTab) {
+    _logEvent('unified_feed_tab_switch', {
+      'from_tab': fromTab?.apiValue ?? 'all',
+      'to_tab': toTab?.apiValue ?? 'all',
+    });
+  }
+
+  /// Track unified feed memory card tap
+  /// 
+  /// [memoryId] is the ID of the memory tapped
+  /// [memoryType] is the type of memory (story/moment/memento)
+  /// [position] is the position in the list (0-indexed)
+  /// [hasMedia] indicates if the memory has media
+  void trackUnifiedFeedCardTap(
+    String memoryId,
+    String memoryType,
+    int position,
+    bool hasMedia,
+  ) {
+    _logEvent('unified_feed_card_tap', {
+      'memory_id': memoryId,
+      'memory_type': memoryType,
+      'position': position,
+      'has_media': hasMedia,
+    });
+  }
+
+  /// Track unified feed pagination success
+  /// 
+  /// [pageNumber] is the page number (1-indexed)
+  /// [itemsLoaded] is the number of items loaded
+  /// [latencyMs] is the time taken to load in milliseconds
+  void trackUnifiedFeedPaginationSuccess(
+    int pageNumber,
+    int itemsLoaded,
+    int latencyMs,
+  ) {
+    _logEvent('unified_feed_pagination_success', {
+      'page_number': pageNumber,
+      'items_loaded': itemsLoaded,
+      'latency_ms': latencyMs,
+    });
+  }
+
+  /// Track unified feed pagination failure
+  /// 
+  /// [pageNumber] is the page number (1-indexed)
+  /// [error] is the error message
+  void trackUnifiedFeedPaginationFailure(int pageNumber, String error) {
+    _logEvent('unified_feed_pagination_failure', {
+      'page_number': pageNumber,
+      'error': error,
     });
   }
 

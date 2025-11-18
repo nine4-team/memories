@@ -103,11 +103,11 @@ class MomentDetailService {
           'id': moment.id,
           'user_id': moment.userId,
           'title': moment.title,
-          'text_description': moment.textDescription,
-          'raw_transcript': moment.rawTranscript,
+          'input_text': moment.inputText,
+          'processed_text': moment.processedText,
           'generated_title': moment.generatedTitle,
           'tags': moment.tags,
-          'capture_type': moment.captureType,
+          'memory_type': moment.memoryType,
           'captured_at': moment.capturedAt.toIso8601String(),
           'created_at': moment.createdAt.toIso8601String(),
           'updated_at': moment.updatedAt.toIso8601String(),
@@ -161,7 +161,7 @@ class MomentDetailService {
   Future<void> deleteMoment(String momentId) async {
     try {
       final response = await _supabase
-          .from('moments')
+          .from('memories')
           .delete()
           .eq('id', momentId)
           .select();
@@ -185,7 +185,7 @@ class MomentDetailService {
     try {
       // First check if moment already has a share token
       final moment = await _supabase
-          .from('moments')
+          .from('memories')
           .select('public_share_token')
           .eq('id', momentId)
           .single();

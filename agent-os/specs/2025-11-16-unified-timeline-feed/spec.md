@@ -59,11 +59,12 @@ Deliver a single, elegant timeline that blends Stories, Moments, and Mementos in
 - Offline mode displays cached results (if available) and disables pull-to-refresh, with a banner explaining limitations.
 
 ## Data & API Requirements
-- Backend endpoint must merge Stories, Moments, and Mementos into one feed response with consistent fields:
-  - `id`, `type` (`story|moment|memento`), `created_at`
-  - Presentation payload (title, body snippet, media metadata, waveform/audio duration, etc.)
+- Backend endpoint queries the unified `memories` table, filtering by `memory_type` (`memory_type_enum` enum) to return Stories, Moments, and Mementos in one feed response with consistent fields:
+  - `id`, `memory_type` (`story|moment|memento`), `created_at`
+  - Presentation payload (title, `input_text`, `processed_text`, body snippet using display text logic, media metadata, waveform/audio duration, etc.)
   - Grouping atoms: `year`, `season`, `month` derived server-side to keep clients lightweight.
-- Filtering parameters allow requesting a single type (e.g., `?type=moment`) or `all`.
+- Filtering parameters allow requesting a single type (e.g., `?memory_type=moment`) or `all` (no filter).
+- **Display Text Logic**: Snippet text should prefer `processed_text` (LLM-processed), falling back to `input_text` (raw user text) if `processed_text` is null or empty.
 - Pagination uses `cursor` tokens (timestamp + unique id) to avoid duplicates when new items are inserted while scrolling.
 - Service should respect Supabase Row-Level Security per user.
 

@@ -65,11 +65,14 @@ Deliver a Memento experience that mirrors the polish and behavior of existing St
 - When offline, disable share/edit/delete according to existing offline policy (edit/delete only if queue-supported, otherwise show explanatory tooltip/badge).
 
 ## Data & Storage
-- `mementos` table continues to store `id`, `user_id`, `description`, `image_url`. Extend/confirm fields to match `moments` additions:
+- All memory types (Moments, Stories, and Mementos) are stored in the unified `memories` table with a `memory_type` field (`memory_type_enum` enum) that differentiates rows.
+- The `memories` table stores `id`, `user_id`, `input_text` (raw user text from capture UI), `processed_text` (LLM-processed cleaned description, nullable), `photo_urls`, `video_urls`, and all shared fields:
   - `raw_transcript` (optional, if dictation used for description), `generated_title`, `title_generated_at`.
-  - `photo_urls text[]`, `video_urls text[]` (if not already arrays).
-  - `tags text[]`, `captured_location geography(Point,4326)`, `location_status text`, `capture_type enum('story','moment','memento')`.
+  - `photo_urls text[]`, `video_urls text[]` (arrays for multiple media).
+  - `tags text[]`, `captured_location geography(Point,4326)`, `location_status text`, `memory_type memory_type_enum` enum('moment','story','memento').
   - `device_timestamp` for audit, `metadata_version` for future migrations.
+- Mementos are filtered via `memory_type = 'memento'` when querying the `memories` table.
+- **Display Text Logic**: Prefer `processed_text` (LLM-processed cleaned description) for display, falling back to `input_text` (raw user text) if `processed_text` is null or empty.
 - Storage pipeline reuses Supabase Storage buckets and thumbnail generation functions (if any). When Save succeeds, trigger thumbnail generation for timeline previews.
 
 ## Technical Considerations

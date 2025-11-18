@@ -13,15 +13,23 @@ Deliver a unified, voice-first capture experience that stores both transcript an
 **Unified Capture Entry Point**
 - Reuse the single capture canvas (text field, mic button, type selector) shared with Moments/Mementos; Story is just one selection in the toggle.
 - Dictation dumps text into the shared input; selecting Story simply changes downstream routing while preserving existing content and attachments.
-- Keep waveform UI with left cancel (X) and right confirm (check) controls per plugin guidelines.
+- Waveform UI follows plugin guidelines:
+  - When NOT dictating: Centered mic button to start recording
+  - When dictating: Control row with cancel (X) button on left, waveform visualization in middle (expanded), and timer + confirm (checkmark) button on right
+  - Timer displays elapsed duration in M:SS format (e.g., "1:23")
+  - Waveform shows real-time audio levels (0.0 to 1.0) at 30 FPS
 - Allow media attachments (photos/videos) prior to submission without leaving this screen.
 
-**Dictation Plugin Enhancements** 
-(NOT DONE BY US - DONE BY PLUGIN TEAM OUTSIDE OF THIS PROJ)
-- Extend the in-house plugin to emit both streaming transcription and a reference to the raw audio buffer once recording stops.
-- Persist audio locally (PCM/WAV or compressed) with metadata (duration, locale, timestamp) so it can be uploaded or retried later.
-- Ensure plugin lifecycle still supports <100 ms start latency, waveform streaming, and permission handling on iOS.
-- Provide hooks so Riverpod state can read recording status, elapsed timer, and any plugin errors for UI messaging.
+**Dictation Plugin Integration**
+- Integrate NativeDictationService from flutter_dictation plugin to provide streaming transcription and raw audio file references.
+- Plugin persists audio locally (PCM/WAV or compressed) with metadata (duration, locale, timestamp) so it can be uploaded or retried later.
+  - Duration: Captured from plugin's DictationAudioFile (in seconds)
+  - Locale: Tracked separately from platform locale (e.g., 'en-US', 'es-ES') since plugin doesn't provide it
+  - Timestamp: Available via captureStartTime in CaptureState (DateTime when dictation started)
+- Ensure (/provide hooks so that?) Riverpod state can read recording status, elapsed timer, and any plugin errors for UI messaging.
+  - Status: Streamed via statusStream (idle, starting, listening, stopping, stopped, cancelled, error)
+  - Elapsed timer: Tracked in real-time via Timer, updated every second, displayed as M:SS format
+  - Errors: Streamed via errorStream and surfaced in UI with error container
 
 **Offline Capture & Queueing**
 - When offline, store transcript text, audio file path, attachments, and selected memory type inside a durable queue (SQLite/Hive) with retry counts.

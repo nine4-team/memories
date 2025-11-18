@@ -6,17 +6,17 @@
 
 2. [x] **Moment Creation (Text + Media)** — Implemented (2025-11-17). Core capture flow with title generation, media upload to Supabase Storage, offline queue & sync, location capture, and basic detail navigation complete; see `agent-os/specs/2025-11-16-moment-creation-text-media/implementation/remaining-work.md`. `S`
 
-3. [ ] **Moment List & Timeline View** — Display all user's Moments in reverse chronological feed with date grouping headers; show thumbnails for media-rich moments and text preview for text-only moments. `S`
+3. [x] **Moment List & Timeline View** — Display all user's Moments in reverse chronological feed with date grouping headers; show thumbnails for media-rich moments and text preview for text-only moments. `S`
 
-4. [ ] **Moment Detail View** — Full-screen view of individual Moment showing title, text, photos (gallery view), and videos (inline player); include edit and delete options. `XS`
+4. [x] **Moment Detail View** — Full-screen view of individual Moment showing title, text, photos (gallery view), and videos (inline player); include edit and delete options. `XS`
 
-5. [ ] **Voice Story Recording & Processing** — Integrate in-house Flutter dictation plugin; record audio, save to Supabase Storage, process transcription, and transform into narrative format (backend processing); create Story object with title and narrative text. `M`
+5. [x] **Voice Story Recording & Processing** — Integrate in-house Flutter dictation plugin; record audio, save to Supabase Storage, process transcription, and transform into narrative format (backend processing); create Story object with title and narrative text. `M`
 
-6. [ ] **Story List & Detail Views** — Display Stories in timeline feed with audio waveform icon and narrative preview; full Story detail view shows complete narrative with audio playback option; include edit and delete. `S`
+6. [x] **Story List & Detail Views** — Implemented (2025-11-17). Display Stories in timeline feed with audio waveform icon and narrative preview; full Story detail view shows complete narrative with audio playback option; include edit and delete. `S`
 
-7. [ ] **Memento Creation & Display** — Create Mementos with title (required), object photo (required), and description text; display in timeline feed with visual badge; detail view shows large image with description. `S`
+7. [x] **Memento Creation & Display** — Create Mementos with title (required), object photo (required), and description text; display in timeline feed with visual badge; detail view shows large image with description. `S`
 
-8. [ ] **Unified Timeline Feed** — Combine Stories, Moments, and Mementos in single reverse-chronological feed with visual differentiation; add filter tabs (All/Stories/Moments/Mementos) at top. `S`
+8. [x] **Unified Timeline Feed** — Implemented (2025-11-17). Combine Stories, Moments, and Mementos in single reverse-chronological feed with visual differentiation; add filter tabs (All/Stories/Moments/Mementos) at top. `S`
 
 9. [ ] **Search Functionality** — Implement full-text search across all Stories, Moments, and Mementos using PostgreSQL text search; persistent search bar in app header with instant results. `S`
 

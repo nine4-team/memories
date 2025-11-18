@@ -11,7 +11,7 @@ Deliver a streamlined Story-only experience that reuses the unified timeline con
 ## Specific Requirements
 
 **Unified Story Timeline**
-- Reuse the existing unified timeline screen and data source, but filter the query/provider to `memory_type = 'story'`.
+- Reuse the existing unified timeline screen and data source, but filter the query/provider to `memory_type = 'story'` (using the `memory_type` column, not `capture_type`).
 - Preserve reverse chronological ordering based on `created_at` with the same date headers already implemented for the unified feed.
 - Keep batch sizes, skeleton loaders, pull-to-refresh, and error retry patterns identical to the Moment list implementation.
 - Ensure navigation keeps Story filter context when users push to detail and return.
@@ -30,7 +30,8 @@ Deliver a streamlined Story-only experience that reuses the unified timeline con
 **Story Detail Structure**
 - Layout order: title at top, followed by audio player module, then narrative text body.
 - Narrative text uses existing rich-text renderer with typography consistent with Moment detail body copy.
-- Support long-form text with appropriate scrolling and “read more” handling if the renderer already supports it.
+- **Display Text Logic**: Prefer `processed_text` (LLM-processed narrative) for display, falling back to `input_text` (raw user text) if `processed_text` is null or empty. For stories, `processed_text` contains the full narrative once LLM processing completes.
+- Support long-form text with appropriate scrolling and "read more" handling if the renderer already supports it.
 
 **Sticky Audio Player**
 - Audio player should remain visible when the user scrolls; leverage a mini sticky header or anchored module to keep controls accessible.

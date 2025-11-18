@@ -1,19 +1,21 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:memories/models/queued_moment.dart';
 import 'package:memories/services/connectivity_service.dart';
-import 'package:memories/services/moment_save_service.dart';
+import 'package:memories/services/memory_save_service.dart';
 import 'package:memories/services/offline_queue_service.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'moment_sync_service.g.dart';
 
-/// Service for syncing queued moments to the server
+/// Service for syncing queued moments and mementos to the server
+/// 
+/// Handles automatic retry with exponential backoff for all memory types
+/// stored in the offline queue (moments and mementos).
 @riverpod
 MomentSyncService momentSyncService(MomentSyncServiceRef ref) {
   final queueService = ref.watch(offlineQueueServiceProvider);
   final connectivityService = ref.watch(connectivityServiceProvider);
-  final saveService = ref.watch(momentSaveServiceProvider);
+  final saveService = ref.watch(memorySaveServiceProvider);
   
   return MomentSyncService(
     queueService,
@@ -25,7 +27,7 @@ MomentSyncService momentSyncService(MomentSyncServiceRef ref) {
 class MomentSyncService {
   final OfflineQueueService _queueService;
   final ConnectivityService _connectivityService;
-  final MomentSaveService _saveService;
+  final MemorySaveService _saveService;
   
   Timer? _syncTimer;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
@@ -69,7 +71,7 @@ class MomentSyncService {
     _connectivitySubscription = null;
   }
 
-  /// Manually trigger sync of all queued moments
+  /// Manually trigger sync of all queued moments and mementos
   Future<void> syncQueuedMoments() async {
     if (_isSyncing) return;
     
@@ -79,11 +81,11 @@ class MomentSyncService {
     _isSyncing = true;
     
     try {
-      // Get all queued moments
+      // Get all queued items (moments and mementos)
       final queued = await _queueService.getByStatus('queued');
       final failed = await _queueService.getByStatus('failed');
 
-      // Process queued moments first, then retry failed ones
+      // Process queued items first, then retry failed ones
       final momentsToSync = [...queued, ...failed];
 
       for (final queuedMoment in momentsToSync) {

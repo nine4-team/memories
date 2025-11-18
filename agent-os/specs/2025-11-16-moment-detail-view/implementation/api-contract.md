@@ -21,11 +21,12 @@ The function returns a single row with the following structure:
 | `id` | `UUID` | Moment ID |
 | `user_id` | `UUID` | Owner user ID |
 | `title` | `TEXT` | Moment title (never null, may be empty) |
-| `text_description` | `TEXT` | Rich text description (markdown/RTF subset, nullable) |
+| `input_text` | `TEXT` | Raw user text from capture UI (nullable) |
+| `processed_text` | `TEXT` | LLM-processed cleaned description (nullable) |
 | `raw_transcript` | `TEXT` | Raw transcript text (nullable) |
 | `generated_title` | `TEXT` | Auto-generated title (nullable) |
 | `tags` | `TEXT[]` | Array of tags |
-| `capture_type` | `TEXT` | Type: 'moment', 'story', or 'memento' |
+| `memory_type` | `TEXT` | Type: 'moment', 'story', or 'memento' |
 | `captured_at` | `TIMESTAMPTZ` | Capture timestamp |
 | `created_at` | `TIMESTAMPTZ` | Record creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last update timestamp (for cache busting) |
@@ -35,6 +36,8 @@ The function returns a single row with the following structure:
 | `videos` | `JSONB[]` | Ordered array of video objects (see below) |
 | `related_stories` | `UUID[]` | Array of related Story IDs |
 | `related_mementos` | `UUID[]` | Array of related Memento IDs |
+
+**Display Text Logic**: The UI should prefer `processed_text` for display (cleaned description), falling back to `input_text` if `processed_text` is null or empty. For moments, `processed_text` contains the LLM-cleaned version of the user's input text once processing completes.
 
 ### Location Data Object
 

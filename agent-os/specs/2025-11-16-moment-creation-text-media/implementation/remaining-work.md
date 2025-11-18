@@ -12,26 +12,21 @@ This document tracks all remaining work for the moment creation feature. Core fu
 
 ### 1.1 Create SQL Migration for Schema Changes
 
-**Status:** ⚠️ Missing  
+**Status:** ✅ Completed  
 **Priority:** Low (useful for documentation/reproducibility, but not blocking)
 
-**What's needed:**
-Create a migration file that documents the schema changes already applied in Supabase:
+**Implementation:**
+Created migration file documenting all schema changes:
 - New columns on `moments` table: `raw_transcript`, `generated_title`, `title_generated_at`, `tags`, `captured_location`, `location_status`, `capture_type`
 - New enum: `capture_type` with values `'moment'`, `'story'`, `'memento'`
-- New indexes: GIN on `tags`, GiST on `captured_location`, partial on `title_generated_at`
-- New table: `media_cleanup_queue` (if it exists)
+- New indexes: GIN on `tags`, GiST on `captured_location`, partial on `title_generated_at`, btree on `capture_type`
+- New table: `media_cleanup_queue` with RLS policies
 
 **Reference files:**
+- Migration file: `supabase/migrations/20250116000000_extend_moments_table_for_text_media_capture.sql`
 - Migration example: `agent-os/specs/2025-11-16-user-auth-and-profile/implementation/20250117000000_create_profiles_table.sql`
 - Migration standards: `agent-os/standards/backend/migrations.md`
 - Schema details: `agent-os/specs/2025-11-16-moment-creation-text-media/implementation/phase-1.md` (lines 7-14)
-
-**Steps:**
-1. Create migration file: `supabase/migrations/YYYYMMDDHHMMSS_extend_moments_table.sql`
-2. Include all schema changes with proper comments
-3. Follow naming convention: timestamp prefix + descriptive name
-4. Test migration on a preview branch before applying to production
 
 **Note:** The schema is already live in Supabase, so this migration is for documentation/reproducibility. It's not blocking functionality.
 
@@ -256,7 +251,7 @@ Review accessibility and localization for the capture flow.
 9. ✅ **Manual "Sync now" Action** — Added to capture screen overflow menu
 
 ### Low Priority (Nice to Have)
-10. ⚠️ **Migrations** — Documentation/reproducibility
+10. ✅ **Migrations** — Documentation/reproducibility (COMPLETED)
 11. ⚠️ **Accessibility Review** — Quality improvement
 12. ⚠️ **Testing** — Can be deferred for v0
 

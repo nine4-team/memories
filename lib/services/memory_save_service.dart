@@ -7,12 +7,11 @@ import 'package:memories/services/connectivity_service.dart';
 import 'package:memories/services/title_generation_service.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-part 'moment_save_service.g.dart';
+part 'memory_save_service.g.dart';
 
-/// Result of saving a moment
-class MomentSaveResult {
+/// Result of saving a memory
+class MemorySaveResult {
   final String momentId;
   final String? generatedTitle;
   final DateTime? titleGeneratedAt;
@@ -20,7 +19,7 @@ class MomentSaveResult {
   final List<String> videoUrls;
   final bool hasLocation;
 
-  MomentSaveResult({
+  MemorySaveResult({
     required this.momentId,
     this.generatedTitle,
     this.titleGeneratedAt,
@@ -36,20 +35,20 @@ typedef SaveProgressCallback = void Function({
   double? progress,
 });
 
-/// Service for saving moments to Supabase
+/// Service for saving memories to Supabase
 @riverpod
-MomentSaveService momentSaveService(MomentSaveServiceRef ref) {
+MemorySaveService memorySaveService(MemorySaveServiceRef ref) {
   final supabase = ref.watch(supabaseClientProvider);
   final titleService = ref.watch(titleGenerationServiceProvider);
   final connectivityService = ref.watch(connectivityServiceProvider);
-  return MomentSaveService(
+  return MemorySaveService(
     supabase,
     titleService,
     connectivityService,
   );
 }
 
-class MomentSaveService {
+class MemorySaveService {
   final SupabaseClient _supabase;
   final TitleGenerationService _titleService;
   final ConnectivityService _connectivityService;
@@ -58,13 +57,13 @@ class MomentSaveService {
   static const int _maxRetries = 3;
   static const Duration _uploadTimeout = Duration(seconds: 30);
 
-  MomentSaveService(
+  MemorySaveService(
     this._supabase,
     this._titleService,
     this._connectivityService,
   );
 
-  /// Save a moment with all its metadata
+  /// Save a memory with all its metadata
   /// 
   /// This method:
   /// 1. Checks connectivity - queues if offline
@@ -74,7 +73,7 @@ class MomentSaveService {
   /// 
   /// Returns the saved moment ID and generated title (if any)
   /// Throws OfflineException if offline (caller should handle queueing)
-  Future<MomentSaveResult> saveMoment({
+  Future<MemorySaveResult> saveMoment({
     required CaptureState state,
     SaveProgressCallback? onProgress,
   }) async {
@@ -212,16 +211,22 @@ class MomentSaveService {
       final momentData = {
         'user_id': _supabase.auth.currentUser?.id,
         'title': '', // Will be updated after title generation
-        'text_description': state.description,
-        'raw_transcript': state.rawTranscript,
+        'input_text': state.inputText, // Canonical raw user text
+        'processed_text': null, // LLM-processed text - stays NULL until processing completes
         'photo_urls': photoUrls,
         'video_urls': videoUrls,
         'tags': state.tags,
-        'capture_type': state.memoryType.apiValue,
+        'memory_type': state.memoryType.apiValue,
         'location_status': state.locationStatus,
         'created_at': now.toIso8601String(),
         'updated_at': now.toIso8601String(),
+        'metadata_version': 1, // Current metadata schema version
       };
+
+      // Add device_timestamp if capture started (when first asset or transcript began)
+      if (state.captureStartTime != null) {
+        momentData['device_timestamp'] = state.captureStartTime!.toUtc().toIso8601String();
+      }
 
       // Add location if available (PostGIS geography format)
       if (locationWkt != null) {
@@ -229,23 +234,32 @@ class MomentSaveService {
       }
 
       final response = await _supabase
-          .from('moments')
+          .from('memories')
           .insert(momentData)
           .select('id')
           .single();
 
       final momentId = response['id'] as String;
 
-      // Step 4: Generate title if transcript exists
+      // Step 4: Generate title
+      // For Mementos: use description text if available, otherwise transcript
+      // For Moments/Stories: use transcript if available
       String? generatedTitle;
       DateTime? titleGeneratedAt;
       
-      if (state.rawTranscript != null && state.rawTranscript!.trim().isNotEmpty) {
+      // Determine text to use for title generation
+      String? textForTitleGeneration;
+      // Use inputText for all memory types
+      textForTitleGeneration = state.inputText?.trim().isNotEmpty == true
+          ? state.inputText!.trim()
+          : null;
+      
+      if (textForTitleGeneration != null && textForTitleGeneration.isNotEmpty) {
         onProgress?.call(message: 'Generating title...', progress: 0.85);
         
         try {
           final titleResponse = await _titleService.generateTitle(
-            transcript: state.rawTranscript!,
+            transcript: textForTitleGeneration,
             memoryType: state.memoryType,
           );
           
@@ -254,7 +268,7 @@ class MomentSaveService {
 
           // Update moment with generated title
           await _supabase
-              .from('moments')
+              .from('memories')
               .update({
                 'title': generatedTitle,
                 'generated_title': generatedTitle,
@@ -267,19 +281,19 @@ class MomentSaveService {
           generatedTitle = fallbackTitle;
           
           await _supabase
-              .from('moments')
+              .from('memories')
               .update({
                 'title': fallbackTitle,
               })
               .eq('id', momentId);
         }
       } else {
-        // No transcript, use fallback title
+        // No text available for title generation, use fallback title
         final fallbackTitle = _getFallbackTitle(state.memoryType);
         generatedTitle = fallbackTitle;
         
         await _supabase
-            .from('moments')
+            .from('memories')
             .update({
               'title': fallbackTitle,
             })
@@ -288,7 +302,7 @@ class MomentSaveService {
 
       onProgress?.call(message: 'Complete!', progress: 1.0);
 
-      return MomentSaveResult(
+      return MemorySaveResult(
         momentId: momentId,
         generatedTitle: generatedTitle,
         titleGeneratedAt: titleGeneratedAt,

@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:memories/models/moment_detail.dart';
+import 'package:memories/providers/capture_state_provider.dart';
 import 'package:memories/providers/moment_detail_provider.dart';
 import 'package:memories/providers/timeline_analytics_provider.dart';
 import 'package:memories/providers/timeline_provider.dart';
+import 'package:memories/screens/capture/capture_screen.dart';
 import 'package:memories/services/connectivity_service.dart';
 import 'package:memories/widgets/media_carousel.dart';
 import 'package:memories/widgets/moment_metadata_section.dart';
 import 'package:memories/widgets/rich_text_content.dart';
+import 'package:memories/widgets/sticky_audio_player.dart';
 
 /// Moment detail screen showing full moment content
 /// 
@@ -45,8 +48,14 @@ class MomentDetailScreen extends ConsumerWidget {
               final canShare = isOnline && 
                   detailState.moment != null && 
                   !detailState.isFromCache;
+              final memoryType = detailState.moment?.memoryType ?? 'moment';
+              final shareLabel = memoryType == 'story' 
+                  ? 'Share story' 
+                  : memoryType == 'memento'
+                      ? 'Share memento'
+                      : 'Share moment';
               return Semantics(
-                label: 'Share moment',
+                label: shareLabel,
                 button: true,
                 child: IconButton(
                   icon: const Icon(Icons.share),
@@ -286,6 +295,8 @@ class MomentDetailScreen extends ConsumerWidget {
     String? heroTag, {
     bool isFromCache = false,
   }) {
+    final isStory = moment.memoryType == 'story';
+    
     return CustomScrollView(
       slivers: [
         // Offline banner if viewing cached data
@@ -297,7 +308,7 @@ class MomentDetailScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // Title section - handles empty title via displayTitle ("Untitled Moment")
+              // Title section - handles empty title via displayTitle
               Text(
                 moment.displayTitle,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -305,19 +316,53 @@ class MomentDetailScreen extends ConsumerWidget {
                     ),
               ),
               const SizedBox(height: 16),
-              // Rich text description with markdown support and "Read more" functionality
-              // Handles empty/absent description gracefully (returns SizedBox.shrink)
-              RichTextContent(
-                text: moment.textDescription,
-              ),
-              const SizedBox(height: 24),
-              // Media carousel with swipeable PageView, zoom, and lightbox
-              if (moment.photos.isNotEmpty || moment.videos.isNotEmpty)
-                MediaCarousel(
-                  photos: moment.photos,
-                  videos: moment.videos,
-                  heroTag: heroTag,
+            ]),
+          ),
+        ),
+        
+        // Sticky audio player for Stories (only if Story)
+        if (isStory)
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _StickyAudioPlayerDelegate(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: StickyAudioPlayer(
+                  audioUrl: null, // TODO: Add audioUrl when available in moment_detail
+                  duration: null, // TODO: Add duration when available in moment_detail
+                  storyId: moment.id,
                 ),
+              ),
+            ),
+          ),
+        
+        SliverPadding(
+          padding: const EdgeInsets.all(16),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              // Story-specific layout: narrative text after audio player
+              if (isStory) ...[
+                // Narrative text (uses displayText which prefers processed_text)
+                RichTextContent(
+                  text: moment.displayText,
+                ),
+              ] else ...[
+                // Moment layout: description → media carousel
+                // Rich text description with markdown support and "Read more" functionality
+                // Handles empty/absent description gracefully (returns SizedBox.shrink)
+                RichTextContent(
+                  text: moment.displayText,
+                ),
+                const SizedBox(height: 24),
+                // Media carousel with swipeable PageView, zoom, and lightbox
+                if (moment.photos.isNotEmpty || moment.videos.isNotEmpty)
+                  MediaCarousel(
+                    photos: moment.photos,
+                    videos: moment.videos,
+                    heroTag: heroTag,
+                  ),
+              ],
+              
               const SizedBox(height: 24),
               // Metadata section: timestamp, location, and related memories
               MomentMetadataSection(moment: moment),
@@ -383,10 +428,14 @@ class MomentDetailScreen extends ConsumerWidget {
             children: [
               // Edit button
               Semantics(
-                label: 'Edit moment',
+                label: moment.memoryType == 'story' 
+                    ? 'Edit story' 
+                    : moment.memoryType == 'memento'
+                        ? 'Edit memento'
+                        : 'Edit moment',
                 button: true,
                 child: FloatingActionButton(
-                  heroTag: 'edit_moment_${moment.id}',
+                  heroTag: 'edit_${moment.memoryType}_${moment.id}',
                   mini: true,
                   onPressed: isOnline
                       ? () => _handleEdit(context, ref, moment)
@@ -398,10 +447,14 @@ class MomentDetailScreen extends ConsumerWidget {
               const SizedBox(height: 8),
               // Delete button
               Semantics(
-                label: 'Delete moment',
+                label: moment.memoryType == 'story' 
+                    ? 'Delete story' 
+                    : moment.memoryType == 'memento'
+                        ? 'Delete memento'
+                        : 'Delete moment',
                 button: true,
                 child: FloatingActionButton(
-                  heroTag: 'delete_moment_${moment.id}',
+                  heroTag: 'delete_${moment.memoryType}_${moment.id}',
                   mini: true,
                   backgroundColor: Theme.of(context).colorScheme.error,
                   onPressed: isOnline
@@ -475,14 +528,26 @@ class MomentDetailScreen extends ConsumerWidget {
     final analytics = ref.read(timelineAnalyticsServiceProvider);
     analytics.trackMomentDetailEdit(moment.id);
 
-    // TODO: Navigate to edit modal/route when edit functionality is implemented
-    // For now, show a placeholder message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Edit functionality coming soon'),
-        duration: Duration(seconds: 2),
-      ),
+    // Load moment data into capture state for editing
+    final captureNotifier = ref.read(captureStateNotifierProvider.notifier);
+    captureNotifier.loadMomentForEdit(
+      captureType: moment.memoryType,
+      inputText: moment.inputText, // Use inputText for editing (raw user text)
+      tags: moment.tags,
+      latitude: moment.locationData?.latitude,
+      longitude: moment.locationData?.longitude,
+      locationStatus: moment.locationData?.status,
     );
+
+    // Navigate to capture screen for editing
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const CaptureScreen(),
+      ),
+    ).then((_) {
+      // Refresh detail view after returning from edit
+      ref.read(momentDetailNotifierProvider(moment.id).notifier).refresh();
+    });
   }
 
   /// Show delete confirmation bottom sheet
@@ -509,7 +574,11 @@ class MomentDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'This action cannot be undone. The moment and all its media will be permanently deleted.',
+              moment.memoryType == 'story'
+                  ? 'This action cannot be undone. The story and all its content will be permanently deleted.'
+                  : moment.memoryType == 'memento'
+                      ? 'This action cannot be undone. The memento and all its media will be permanently deleted.'
+                      : 'This action cannot be undone. The moment and all its media will be permanently deleted.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -550,7 +619,12 @@ class MomentDetailScreen extends ConsumerWidget {
   ) async {
     final analytics = ref.read(timelineAnalyticsServiceProvider);
     final notifier = ref.read(momentDetailNotifierProvider(momentId).notifier);
-    final timelineNotifier = ref.read(timelineFeedNotifierProvider.notifier);
+    final isStory = moment.memoryType == 'story';
+    
+    // Get the appropriate timeline notifier based on memory type
+    final timelineNotifier = isStory
+        ? ref.read(storyTimelineFeedNotifierProvider.notifier)
+        : ref.read(unifiedTimelineFeedNotifierProvider.notifier);
 
     // Track delete action
     analytics.trackMomentDetailDelete(moment.id);
@@ -566,10 +640,15 @@ class MomentDetailScreen extends ConsumerWidget {
         // Pop detail screen and show success message
         if (context.mounted) {
           Navigator.of(context).pop();
+          final deleteMessage = isStory 
+              ? 'Story deleted' 
+              : moment.memoryType == 'memento'
+                  ? 'Memento deleted'
+                  : 'Moment deleted';
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Moment deleted'),
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: Text(deleteMessage),
+              duration: const Duration(seconds: 2),
             ),
           );
         }
@@ -577,10 +656,15 @@ class MomentDetailScreen extends ConsumerWidget {
         // Refresh timeline to restore the moment if delete failed
         timelineNotifier.refresh();
         if (context.mounted) {
+          final errorMessage = isStory 
+              ? 'Failed to delete story. Please try again.'
+              : moment.memoryType == 'memento'
+                  ? 'Failed to delete memento. Please try again.'
+                  : 'Failed to delete moment. Please try again.';
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to delete moment. Please try again.'),
-              duration: Duration(seconds: 3),
+            SnackBar(
+              content: Text(errorMessage),
+              duration: const Duration(seconds: 3),
             ),
           );
         }
@@ -589,9 +673,14 @@ class MomentDetailScreen extends ConsumerWidget {
       // Refresh timeline to restore the moment
       timelineNotifier.refresh();
       if (context.mounted) {
+        final errorMessage = isStory 
+            ? 'Failed to delete story: $e'
+            : moment.memoryType == 'memento'
+                ? 'Failed to delete memento: $e'
+                : 'Failed to delete moment: $e';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to delete moment: $e'),
+            content: Text(errorMessage),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -614,6 +703,36 @@ class MomentDetailScreen extends ConsumerWidget {
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+}
+
+/// Delegate for sticky audio player header
+class _StickyAudioPlayerDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  _StickyAudioPlayerDelegate({required this.child});
+
+  @override
+  double get minExtent => 100;
+
+  @override
+  double get maxExtent => 100;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_StickyAudioPlayerDelegate oldDelegate) {
+    return child != oldDelegate.child;
   }
 }
 

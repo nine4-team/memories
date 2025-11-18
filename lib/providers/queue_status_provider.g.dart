@@ -6,9 +6,13 @@ part of 'queue_status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$queueStatusHash() => r'adc94b1494b9d89ae05a1b8d7403365fe097df0a';
+String _$queueStatusHash() => r'28523158131682bf11938d3d1089983f2fdc8854';
 
 /// Provider that watches queue status for UI display
+///
+/// Includes moments, mementos, and stories in the queue status.
+/// Note: Mementos are stored in the same queue as moments (OfflineQueueService),
+/// so they are included in the moment queue counts.
 ///
 /// Copied from [queueStatus].
 @ProviderFor(queueStatus)

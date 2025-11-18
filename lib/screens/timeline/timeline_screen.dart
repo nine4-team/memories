@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:memories/models/timeline_moment.dart';
 import 'package:memories/providers/timeline_provider.dart';
 import 'package:memories/widgets/moment_card.dart';
+import 'package:memories/widgets/story_card.dart';
+import 'package:memories/widgets/memento_card.dart';
 import 'package:memories/widgets/timeline_header.dart';
 import 'package:memories/widgets/timeline_search_bar.dart';
 import 'package:memories/widgets/skeleton_loader.dart';
@@ -27,7 +29,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     _scrollController.addListener(_onScroll);
     // Load initial data
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(timelineFeedNotifierProvider.notifier).loadInitial();
+      ref.read(unifiedTimelineFeedNotifierProvider.notifier).loadInitial();
     });
   }
 
@@ -44,7 +46,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     // Track scroll depth
     if (maxScroll > 0) {
       final scrollDepth = ((position.pixels / maxScroll) * 100).round();
-      final timelineState = ref.read(timelineFeedNotifierProvider);
+      final timelineState = ref.read(unifiedTimelineFeedNotifierProvider);
       ref.read(timelineAnalyticsServiceProvider).trackScrollDepth(
         scrollDepth,
         timelineState.moments.length,
@@ -54,7 +56,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     if (position.pixels >= maxScroll * 0.8) {
       // Load more when 80% scrolled
       final searchQuery = ref.read(searchQueryNotifierProvider);
-      ref.read(timelineFeedNotifierProvider.notifier).loadMore(
+      ref.read(unifiedTimelineFeedNotifierProvider.notifier).loadMore(
             searchQuery: searchQuery.isEmpty ? null : searchQuery,
           );
     }
@@ -63,7 +65,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
   Future<void> _onRefresh() async {
     ref.read(timelineAnalyticsServiceProvider).trackPullToRefresh();
     final searchQuery = ref.read(searchQueryNotifierProvider);
-    await ref.read(timelineFeedNotifierProvider.notifier).refresh(
+    await ref.read(unifiedTimelineFeedNotifierProvider.notifier).refresh(
           searchQuery: searchQuery.isEmpty ? null : searchQuery,
         );
   }
@@ -86,7 +88,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final timelineState = ref.watch(timelineFeedNotifierProvider);
+    final timelineState = ref.watch(unifiedTimelineFeedNotifierProvider);
     final searchQuery = ref.watch(searchQueryNotifierProvider);
     // TODO: Implement proper connectivity checking
     final isOnline = true;
@@ -213,7 +215,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                       child: ElevatedButton(
                         onPressed: () {
                           ref.read(searchQueryNotifierProvider.notifier).clear();
-                          ref.read(timelineFeedNotifierProvider.notifier).loadInitial();
+                          ref.read(unifiedTimelineFeedNotifierProvider.notifier).loadInitial();
                         },
                         child: const Text('Clear search'),
                       ),
@@ -279,7 +281,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                     button: true,
                     child: ElevatedButton(
                       onPressed: () {
-                        ref.read(timelineFeedNotifierProvider.notifier).loadInitial();
+                        ref.read(unifiedTimelineFeedNotifierProvider.notifier).loadInitial();
                       },
                       child: const Text('Retry'),
                     ),
@@ -335,14 +337,37 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                             final moment = monthMoments[index];
                             final position = momentPositions[moment.id] ?? 0;
                             
-                            return MomentCard(
-                              moment: moment,
-                              onTap: () => _navigateToMomentDetail(
-                                moment.id,
-                                position,
-                                moment.primaryMedia != null,
-                              ),
-                            );
+                            // Use appropriate card widget based on memory type
+                            final memoryType = moment.memoryType.toLowerCase();
+                            if (memoryType == 'memento') {
+                              return MementoCard(
+                                memento: moment,
+                                onTap: () => _navigateToMomentDetail(
+                                  moment.id,
+                                  position,
+                                  moment.primaryMedia != null,
+                                ),
+                              );
+                            } else if (memoryType == 'story') {
+                              return StoryCard(
+                                story: moment,
+                                onTap: () => _navigateToMomentDetail(
+                                  moment.id,
+                                  position,
+                                  moment.primaryMedia != null,
+                                ),
+                              );
+                            } else {
+                              // Default to MomentCard for moments
+                              return MomentCard(
+                                moment: moment,
+                                onTap: () => _navigateToMomentDetail(
+                                  moment.id,
+                                  position,
+                                  moment.primaryMedia != null,
+                                ),
+                              );
+                            }
                           },
                           childCount: monthMoments.length,
                         ),

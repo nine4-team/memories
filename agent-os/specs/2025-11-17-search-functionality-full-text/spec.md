@@ -18,8 +18,8 @@ Deliver a fast, trustworthy full-text search experience that lets users instantl
 - Hide suggestions when the user dismisses the search or navigates to a detail screen.
 
 **Search Index Construction & Weighting**
-- Index titles, descriptions, narrative text, and transcripts for all memory tables with PostgreSQL full-text search and type-specific GIN indexes.
-- Apply higher weights to titles, then descriptions, then long-form narrative/transcript fields; document the weighting constants.
+- Index titles, `processed_text` (LLM-processed descriptions/narratives), `input_text` (raw user text), and transcripts for all memory tables with PostgreSQL full-text search and type-specific GIN indexes.
+- Apply higher weights to titles, then `processed_text`, then `input_text`, then long-form transcript fields; document the weighting constants.
 - Ensure indexes respect existing Row-Level Security policies so users see only their own memories.
 - Refresh or maintain materialized views (if used) on create/update/delete of Stories, Moments, or Mementos.
 

@@ -24,9 +24,10 @@ Create a premium-quality Moment detail experience that showcases every piece of 
 - Preserve scroll offset/state when user edits Moment and returns.
 
 ### Text & Typography
-- Title uses display font, multi-line with graceful wrapping. If empty, show “Untitled Moment”.
+- Title uses display font, multi-line with graceful wrapping. If empty, show "Untitled Moment".
+- **Display Text Logic**: Prefer `processed_text` (LLM-processed cleaned description) for display, falling back to `input_text` (raw user text) if `processed_text` is null or empty. For moments, `processed_text` contains the LLM-cleaned version once processing completes.
 - Description supports bold, italic, bulleted lists, and hyperlinks. Render markdown/RTF subset with consistent spacing.
-- “Read more” collapse triggers after ~6 lines; expand animates height smoothly and maintains scroll anchor.
+- "Read more" collapse triggers after ~6 lines; expand animates height smoothly and maintains scroll anchor.
 
 ### Media Presentation
 - Primary carousel leverages `PageView` + `InteractiveViewer` for swipe + pinch-to-zoom per asset.
@@ -52,7 +53,7 @@ Create a premium-quality Moment detail experience that showcases every piece of 
 - Offline mode allows viewing cached data; disable share and show offline badge. Edit/Delete queue locally only if upstream workflow supports it (otherwise disable with tooltip explaining requirement).
 
 ## Data & Storage
-- Detail endpoint must return: id, title, rich text body (markdown or HTML subset), ordered photo list (URL, width/height, caption), ordered video list (URL, duration, poster), capture timestamp, capture timezone, location (city, state, lat/long), related Story IDs, related Memento IDs, share link (optional), and `updated_at` for cache busting.
+- Detail endpoint must return: id, title, `input_text` (raw user text), `processed_text` (LLM-processed cleaned description, nullable), rich text body (markdown or HTML subset derived from display text logic), ordered photo list (URL, width/height, caption), ordered video list (URL, duration, poster), capture timestamp, capture timezone, location (city, state, lat/long), related Story IDs, related Memento IDs, share link (optional), `memory_type`, and `updated_at` for cache busting.
 - Media URLs should be signed Supabase Storage paths with expiry long enough for detail sessions; client refreshes tokens when expired.
 - Share action requests/creates a `public_share_token` if absent; API responds with shareable URL for downstream UI or returns error state handled above.
 

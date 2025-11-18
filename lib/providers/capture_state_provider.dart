@@ -1,15 +1,22 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:memories/models/capture_state.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/services/dictation_service.dart';
 import 'package:memories/services/geolocation_service.dart';
+import 'package:memories/services/audio_cache_service.dart';
+import 'package:memories/providers/feature_flags_provider.dart';
+import 'package:uuid/uuid.dart';
 
 part 'capture_state_provider.g.dart';
 
 /// Provider for dictation service
 @riverpod
 DictationService dictationService(DictationServiceRef ref) {
-  final service = DictationService();
+  // Watch feature flag (sync version)
+  final useNewPlugin = ref.watch(useNewDictationPluginSyncProvider);
+  final service = DictationService(useNewPlugin: useNewPlugin);
   ref.onDispose(() => service.dispose());
   return service;
 }
@@ -44,6 +51,39 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     );
   }
 
+  /// Stream subscriptions for dictation service
+  StreamSubscription<String>? _transcriptSubscription;
+  StreamSubscription<DictationStatus>? _statusSubscription;
+  StreamSubscription<double>? _audioLevelSubscription;
+  StreamSubscription<String>? _errorSubscription;
+  
+  /// Timer for tracking elapsed duration during dictation
+  Timer? _elapsedTimer;
+
+  /// Cancel all stream subscriptions
+  void _cancelSubscriptions() {
+    _transcriptSubscription?.cancel();
+    _statusSubscription?.cancel();
+    _audioLevelSubscription?.cancel();
+    _errorSubscription?.cancel();
+    _transcriptSubscription = null;
+    _statusSubscription = null;
+    _audioLevelSubscription = null;
+    _errorSubscription = null;
+  }
+  
+  /// Cancel elapsed timer
+  void _cancelElapsedTimer() {
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
+  }
+  
+  /// Get current locale string (e.g., 'en-US', 'es-ES')
+  String _getCurrentLocale() {
+    final locale = WidgetsBinding.instance.platformDispatcher.locale;
+    return '${locale.languageCode}-${locale.countryCode}';
+  }
+
   /// Start dictation
   Future<void> startDictation() async {
     final dictationService = ref.read(dictationServiceProvider);
@@ -52,26 +92,116 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
       return;
     }
 
-    final started = await dictationService.start();
-    if (!started) {
-      state = state.copyWith(
-        errorMessage: 'Failed to start dictation',
-      );
-      return;
-    }
+    // Cancel any existing subscriptions
+    _cancelSubscriptions();
 
-    // Listen to transcript updates
-    dictationService.transcriptStream.listen((transcript) {
+    // Generate session ID if not already set (for audio file tracking)
+    // Reuse existing sessionId if available (retry scenario)
+    final sessionId = state.sessionId ?? const Uuid().v4();
+
+    // Get current locale for dictation
+    final locale = _getCurrentLocale();
+    
+    // Reset waveform state and start elapsed timer
+    final startTime = DateTime.now();
+    state = state.copyWith(
+      audioLevel: 0.0,
+      errorMessage: null,
+      sessionId: sessionId,
+      elapsedDuration: Duration.zero,
+      dictationLocale: locale,
+      captureStartTime: startTime,
+    );
+    
+    // Start elapsed timer (updates every second)
+    _cancelElapsedTimer();
+    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final elapsed = DateTime.now().difference(startTime);
       state = state.copyWith(
-        rawTranscript: transcript,
+        elapsedDuration: elapsed,
         hasUnsavedChanges: true,
       );
     });
 
+    // Subscribe to status stream
+    _statusSubscription = dictationService.statusStream.listen((status) {
+      state = state.copyWith(
+        isDictating: status == DictationStatus.listening || 
+                     status == DictationStatus.starting,
+        hasUnsavedChanges: true,
+      );
+    });
+
+    // Subscribe to transcript updates (result stream)
+    _transcriptSubscription = dictationService.transcriptStream.listen((transcript) {
+      state = state.copyWith(
+        inputText: transcript, // Populate inputText automatically
+        hasUnsavedChanges: true,
+      );
+    });
+
+    // Subscribe to audio level stream (for waveform)
+    _audioLevelSubscription = dictationService.audioLevelStream.listen((level) {
+      state = state.copyWith(
+        audioLevel: level,
+        hasUnsavedChanges: true,
+      );
+    });
+
+    // Subscribe to error stream (permission errors, etc.)
+    _errorSubscription = dictationService.errorStream.listen((error) {
+      state = state.copyWith(
+        errorMessage: error,
+        hasUnsavedChanges: true,
+      );
+    });
+
+    final started = await dictationService.start();
+    if (!started) {
+      _cancelElapsedTimer();
+      state = state.copyWith(
+        errorMessage: dictationService.errorMessage ?? 'Failed to start dictation',
+        elapsedDuration: Duration.zero,
+      );
+      return;
+    }
+
     state = state.copyWith(
       isDictating: true,
-      captureStartTime: state.captureStartTime ?? DateTime.now(),
       hasUnsavedChanges: true,
+    );
+  }
+  
+  /// Cancel dictation (discard recording)
+  Future<void> cancelDictation() async {
+    if (!state.isDictating) {
+      return;
+    }
+
+    final dictationService = ref.read(dictationServiceProvider);
+    await dictationService.cancel();
+
+    // Cancel subscriptions and timer
+    _cancelSubscriptions();
+    _cancelElapsedTimer();
+
+    // Clean up audio file if it exists (cancel/discard flow)
+    final sessionId = state.sessionId;
+    if (sessionId != null) {
+      final audioCacheService = ref.read(audioCacheServiceProvider);
+      await audioCacheService.cleanupAudioFile(
+        sessionId: sessionId,
+        keepIfQueued: false, // Discarding, so don't keep
+      );
+    }
+
+    // Reset state
+    state = state.copyWith(
+      isDictating: false,
+      audioLevel: 0.0,
+      elapsedDuration: Duration.zero,
+      hasUnsavedChanges: true,
+      clearAudio: true,
     );
   }
 
@@ -82,19 +212,60 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     }
 
     final dictationService = ref.read(dictationServiceProvider);
-    final finalTranscript = await dictationService.stop();
+    final result = await dictationService.stop();
 
+    // Cancel subscriptions and timer
+    _cancelSubscriptions();
+    _cancelElapsedTimer();
+
+    // Extract audio metadata if available
+    double? audioDuration;
+    if (result.metadata != null) {
+      audioDuration = (result.metadata!['duration'] as num?)?.toDouble();
+    }
+
+    // Store audio file in cache if available (task 4: audio persistence hooks)
+    String? cachedAudioPath;
+    final sessionId = state.sessionId;
+    if (result.audioFilePath != null && sessionId != null) {
+      try {
+        final audioCacheService = ref.read(audioCacheServiceProvider);
+        cachedAudioPath = await audioCacheService.storeAudioFile(
+          sourcePath: result.audioFilePath!,
+          sessionId: sessionId,
+          metadata: {
+            ...?result.metadata,
+            'locale': state.dictationLocale,
+            'captureStartTime': state.captureStartTime?.toIso8601String(),
+          },
+        );
+      } catch (e) {
+        // Log error but continue - audio caching failure shouldn't break the flow
+        // In production, you might want to log this to analytics
+        // For now, fall back to using the original path
+        cachedAudioPath = result.audioFilePath;
+      }
+    } else {
+      // No audio file or session ID, use original path if available
+      cachedAudioPath = result.audioFilePath;
+    }
+
+    // Reset waveform state and store cached audio path
     state = state.copyWith(
       isDictating: false,
-      rawTranscript: finalTranscript.isNotEmpty ? finalTranscript : state.rawTranscript,
+      inputText: result.transcript.isNotEmpty ? result.transcript : state.inputText,
+      audioPath: cachedAudioPath,
+      audioDuration: audioDuration,
+      audioLevel: 0.0,
+      // Keep elapsedDuration as final recording duration
       hasUnsavedChanges: true,
     );
   }
 
-  /// Update description text
-  void updateDescription(String? description) {
+  /// Update input text
+  void updateInputText(String? inputText) {
     state = state.copyWith(
-      description: description,
+      inputText: inputText,
       hasUnsavedChanges: true,
     );
   }
@@ -187,14 +358,35 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
   }
 
   /// Clear all state
-  void clear() {
+  /// 
+  /// [keepAudioIfQueued] if true, keeps audio file even if it's queued for upload
+  /// Set to true when clearing state after successful queueing
+  Future<void> clear({bool keepAudioIfQueued = false}) async {
+    // Cancel subscriptions and timer
+    _cancelSubscriptions();
+    _cancelElapsedTimer();
+
+    // Stop dictation if active (fire and forget)
     final dictationService = ref.read(dictationServiceProvider);
     if (state.isDictating) {
-      dictationService.stop();
+      dictationService.stop().then((_) {
+        dictationService.clear();
+      });
+    } else {
+      dictationService.clear();
     }
-    dictationService.clear();
 
-    state = const CaptureState();
+    // Clean up audio file (task 4: audio persistence hooks)
+    final sessionId = state.sessionId;
+    if (sessionId != null) {
+      final audioCacheService = ref.read(audioCacheServiceProvider);
+      await audioCacheService.cleanupAudioFile(
+        sessionId: sessionId,
+        keepIfQueued: keepAudioIfQueued,
+      );
+    }
+
+    state = const CaptureState().copyWith(clearAudio: true);
   }
 
   /// Set error message
@@ -240,6 +432,32 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
   /// Set captured timestamp
   void setCapturedAt(DateTime timestamp) {
     state = state.copyWith(capturedAt: timestamp);
+  }
+
+  /// Load existing moment data into capture state for editing
+  /// 
+  /// Preloads inputText, tags, location, and memory type from a MomentDetail
+  /// Note: Media files (photos/videos) are not loaded as they're already uploaded
+  /// and cannot be edited. Users can add new media during edit.
+  void loadMomentForEdit({
+    required String captureType,
+    String? inputText,
+    List<String>? tags,
+    double? latitude,
+    double? longitude,
+    String? locationStatus,
+  }) {
+    final memoryType = MemoryTypeExtension.fromApiValue(captureType);
+    
+    state = state.copyWith(
+      memoryType: memoryType,
+      inputText: inputText,
+      tags: tags ?? [],
+      latitude: latitude,
+      longitude: longitude,
+      locationStatus: locationStatus,
+      hasUnsavedChanges: false, // Reset since we're loading existing data
+    );
   }
 }
 

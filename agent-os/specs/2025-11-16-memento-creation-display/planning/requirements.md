@@ -46,6 +46,7 @@ No visual assets provided.
 ### Functional Requirements
 - Reuse the unified capture sheet controls (mic, description input, photo/video picker) for Mementos with no additional screens.
 - Allow saving when at least one of description text or media exists; titles are auto-generated via LLM and editable later.
+- Ensure the capture “Description/Input” field is the single canonical text surface—dictation writes into it automatically, manual edits happen there, and any cleaned transcript we persist comes from that same field.
 - Apply the same deferred upload, offline queueing, and retry logic already defined for Moments/Stories.
 - Use the unified timeline card pattern with a “Memento” badge, hero thumbnail, friendly timestamp, and no extra metadata.
 - Detail screen mirrors the Moment detail layout including hero media carousel, metadata rows (timestamp, location, tags), action pills, and share/edit/delete behavior.
@@ -61,6 +62,7 @@ No visual assets provided.
 **In Scope:**
 - Adapting the current capture, timeline, and detail experiences to support Mementos with the same UX/metadata patterns.
 - Auto-generating titles via LLM and letting users edit later.
+- Renaming/synching the capture text surface to `input_text` (or equivalent) across app state, APIs, Supabase interactions, and analytics so all memory types share one text pipeline.
 - Ensuring metadata (tags, timestamps, location) and timeline presentation stay in sync with other memory types.
 
 **Out of Scope:**

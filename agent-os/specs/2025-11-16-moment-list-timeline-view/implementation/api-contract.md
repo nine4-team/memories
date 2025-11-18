@@ -24,11 +24,12 @@ Each row in the response contains:
 | `id` | `UUID` | Moment ID |
 | `user_id` | `UUID` | Owner user ID |
 | `title` | `TEXT` | Moment title |
-| `text_description` | `TEXT` | Text description (nullable) |
+| `input_text` | `TEXT` | Raw user text from capture UI (nullable) |
+| `processed_text` | `TEXT` | LLM-processed cleaned description (nullable) |
 | `raw_transcript` | `TEXT` | Raw transcript text (nullable) |
 | `generated_title` | `TEXT` | Auto-generated title (nullable) |
 | `tags` | `TEXT[]` | Array of tags (trimmed, case-insensitive) |
-| `capture_type` | `TEXT` | Type: 'moment', 'story', or 'memento' |
+| `memory_type` | `TEXT` | Type: 'moment', 'story', or 'memento' |
 | `captured_at` | `TIMESTAMPTZ` | Capture timestamp (for ordering) |
 | `created_at` | `TIMESTAMPTZ` | Record creation timestamp |
 | `year` | `INT` | Year extracted from captured_at |
@@ -36,7 +37,7 @@ Each row in the response contains:
 | `month` | `INT` | Month (1-12) |
 | `day` | `INT` | Day of month |
 | `primary_media` | `JSONB` | Primary media object (see below) |
-| `snippet_text` | `TEXT` | Preview text (max 200 chars, description or transcript) |
+| `snippet_text` | `TEXT` | Preview text (max 200 chars, prefers processed_text, falls back to input_text) |
 | `next_cursor_captured_at` | `TIMESTAMPTZ` | Cursor for next page (set by client) |
 | `next_cursor_id` | `UUID` | Cursor ID for next page (set by client) |
 
@@ -100,7 +101,7 @@ SELECT * FROM get_timeline_feed(
 ### Search Behavior
 
 - Uses PostgreSQL `plainto_tsquery` for natural language search
-- Searches across: title (weight A), description (weight B), transcript (weight C)
+- Searches across: title (weight A), processed_text (weight B), input_text (weight B), raw_transcript (weight C)
 - Results are still ordered by `captured_at DESC`
 - Empty or whitespace-only queries are ignored (no search filter applied)
 

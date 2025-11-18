@@ -3,13 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/models/queued_moment.dart';
+import 'package:memories/models/queued_story.dart';
 import 'package:memories/providers/capture_state_provider.dart';
 import 'package:memories/providers/media_picker_provider.dart';
 import 'package:memories/providers/queue_status_provider.dart';
 import 'package:memories/providers/supabase_provider.dart';
-import 'package:memories/services/moment_save_service.dart';
+import 'package:memories/services/memory_save_service.dart';
 import 'package:memories/services/moment_sync_service.dart';
 import 'package:memories/services/offline_queue_service.dart';
+import 'package:memories/services/offline_story_queue_service.dart';
+import 'package:memories/services/connectivity_service.dart';
 import 'package:memories/screens/moment/moment_detail_screen.dart';
 import 'package:memories/widgets/media_tray.dart';
 import 'package:memories/widgets/queue_status_chips.dart';
@@ -36,11 +39,35 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
   bool _isSaving = false;
   String? _saveProgressMessage;
   double? _saveProgress;
+  bool _hasInitializedDescription = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize input text controller from capture state after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = ref.read(captureStateNotifierProvider);
+      if (state.inputText != null && !_hasInitializedDescription) {
+        _descriptionController.text = state.inputText!;
+        _hasInitializedDescription = true;
+      }
+    });
+  }
 
   @override
   void dispose() {
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  /// Sync input text controller with state when state changes (e.g., from dictation)
+  void _syncInputTextController(String? inputText) {
+    // Only update controller if it differs from current text to avoid triggering onChanged
+    final currentText = _descriptionController.text;
+    final newText = inputText ?? '';
+    if (currentText != newText) {
+      _descriptionController.text = newText;
+    }
   }
 
   Future<void> _handleAddPhoto() async {
@@ -124,9 +151,14 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
     final notifier = ref.read(captureStateNotifierProvider.notifier);
     
     if (!state.canSave) {
+      final message = state.memoryType == MemoryType.story
+          ? 'Please record audio to save'
+          : state.memoryType == MemoryType.memento
+              ? 'Please add description text or at least one photo/video'
+              : 'Please add description text or at least one photo/video';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please add at least one item (transcript, media, or tag)'),
+        SnackBar(
+          content: Text(message),
         ),
       );
       return;
@@ -149,20 +181,92 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
       setState(() {});
       
       await notifier.captureLocation();
-      final updatedState = ref.read(captureStateNotifierProvider);
       
       // Step 2: Set captured timestamp
       final capturedAt = DateTime.now();
       notifier.setCapturedAt(capturedAt);
+      final finalState = ref.read(captureStateNotifierProvider);
+
+      // Step 3: Handle Story vs Moment/Memento saving
+      if (finalState.memoryType == MemoryType.story) {
+        // For Stories, queue for offline sync (story save service will be implemented in task 8)
+        // Check connectivity to determine if we should queue
+        final connectivityService = ref.read(connectivityServiceProvider);
+        final isOnline = await connectivityService.isOnline();
+        
+        try {
+          // Queue story (will be synced when story save service is available in task 8)
+          // This queues whenever uploads cannot proceed (offline or when upload service unavailable)
+          final storyQueueService = ref.read(offlineStoryQueueServiceProvider);
+          final localId = OfflineStoryQueueService.generateLocalId();
+          
+          // Check for duplicate submissions: if a story with identical content is already queued,
+          // update it instead of creating a duplicate. The deterministic local ID prevents
+          // duplicate submissions during the same save operation.
+          final queuedStory = QueuedStory.fromCaptureState(
+            localId: localId,
+            state: finalState,
+            audioPath: finalState.audioPath,
+            audioDuration: finalState.audioDuration,
+            capturedAt: capturedAt,
+          );
+          await storyQueueService.enqueue(queuedStory);
+          
+          // Invalidate queue status to refresh UI (shows queued/syncing badges)
+          ref.invalidate(queueStatusProvider);
+          
+          if (mounted) {
+            // Reset saving state before navigation
+            setState(() {
+              _isSaving = false;
+              _saveProgressMessage = null;
+              _saveProgress = null;
+            });
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  isOnline
+                      ? 'Story queued for sync'
+                      : 'Story queued for sync when connection is restored',
+                ),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+            await notifier.clear(keepAudioIfQueued: true);
+            Navigator.of(context).pop();
+            return;
+          }
+        } catch (e) {
+          // Handle queue errors gracefully
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to queue story: ${e.toString()}'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+                action: SnackBarAction(
+                  label: 'Retry',
+                  textColor: Colors.white,
+                  onPressed: () => _handleSave(),
+                ),
+              ),
+            );
+          }
+          // Re-throw to be caught by outer catch block
+          rethrow;
+        }
+      }
 
       // Step 3: Save moment with progress updates (or queue if offline)
-      final saveService = ref.read(momentSaveServiceProvider);
+      final saveService = ref.read(memorySaveServiceProvider);
       final queueService = ref.read(offlineQueueServiceProvider);
-      MomentSaveResult? result;
+      MemorySaveResult? result;
       
       try {
         result = await saveService.saveMoment(
-          state: updatedState,
+          state: finalState,
           onProgress: ({message, progress}) {
             if (mounted) {
               setState(() {
@@ -177,10 +281,13 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
         final localId = OfflineQueueService.generateLocalId();
         final queuedMoment = QueuedMoment.fromCaptureState(
           localId: localId,
-          state: updatedState,
+          state: finalState,
           capturedAt: capturedAt,
         );
         await queueService.enqueue(queuedMoment);
+        
+        // Invalidate queue status to refresh UI
+        ref.invalidate(queueStatusProvider);
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -190,7 +297,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
               duration: const Duration(seconds: 3),
             ),
           );
-          notifier.clear();
+          await notifier.clear(keepAudioIfQueued: true);
           Navigator.of(context).pop();
           return;
         }
@@ -207,7 +314,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
         if (editedTitle != null && editedTitle != result.generatedTitle) {
           final supabase = ref.read(supabaseClientProvider);
           await supabase
-              .from('moments')
+              .from('memories')
               .update({'title': editedTitle})
               .eq('id', result.momentId);
         }
@@ -228,7 +335,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
         );
 
         // Clear state and navigate to detail view
-        notifier.clear();
+        await notifier.clear();
         Navigator.of(context).pop();
         // Navigate to moment detail view
         final savedMomentId = result.momentId;
@@ -315,33 +422,53 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
     
     return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Title'),
-        content: TextField(
-          controller: titleController,
-          decoration: const InputDecoration(
-            hintText: 'Enter title',
-            border: OutlineInputBorder(),
+      builder: (context) => Semantics(
+        label: 'Edit title dialog',
+        child: AlertDialog(
+          title: Semantics(
+            label: 'Edit Title',
+            header: true,
+            child: const Text('Edit Title'),
           ),
-          autofocus: true,
-          maxLength: 60,
+          content: Semantics(
+            label: 'Title input field',
+            textField: true,
+            hint: 'Enter title',
+            child: TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                hintText: 'Enter title',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+              maxLength: 60,
+            ),
+          ),
+          actions: [
+            Semantics(
+              label: 'Keep original title',
+              button: true,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context, initialTitle),
+                child: const Text('Keep Original'),
+              ),
+            ),
+            Semantics(
+              label: 'Save edited title',
+              button: true,
+              child: TextButton(
+                onPressed: () {
+                  final edited = titleController.text.trim();
+                  Navigator.pop(
+                    context,
+                    edited.isEmpty ? initialTitle : edited,
+                  );
+                },
+                child: const Text('Save'),
+              ),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, initialTitle),
-            child: const Text('Keep Original'),
-          ),
-          TextButton(
-            onPressed: () {
-              final edited = titleController.text.trim();
-              Navigator.pop(
-                context,
-                edited.isEmpty ? initialTitle : edited,
-              );
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
@@ -349,27 +476,45 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
   Future<bool> _handleCancel() async {
     final state = ref.read(captureStateNotifierProvider);
     
-    if (state.hasUnsavedChanges) {
+      if (state.hasUnsavedChanges) {
       final shouldDiscard = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Discard changes?'),
-          content: const Text('You have unsaved changes. Are you sure you want to discard them?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Keep Editing'),
+        builder: (context) => Semantics(
+          label: 'Discard changes confirmation dialog',
+          child: AlertDialog(
+            title: Semantics(
+              label: 'Discard changes?',
+              header: true,
+              child: const Text('Discard changes?'),
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Discard'),
+            content: Semantics(
+              label: 'You have unsaved changes. Are you sure you want to discard them?',
+              child: const Text('You have unsaved changes. Are you sure you want to discard them?'),
             ),
-          ],
+            actions: [
+              Semantics(
+                label: 'Keep editing',
+                button: true,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Keep Editing'),
+                ),
+              ),
+              Semantics(
+                label: 'Discard changes',
+                button: true,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Discard'),
+                ),
+              ),
+            ],
+          ),
         ),
       );
 
       if (shouldDiscard == true) {
-        ref.read(captureStateNotifierProvider.notifier).clear();
+        await ref.read(captureStateNotifierProvider.notifier).clear();
         return true;
       }
       return false;
@@ -380,8 +525,13 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.read(captureStateNotifierProvider);
+    final state = ref.watch(captureStateNotifierProvider);
     final notifier = ref.read(captureStateNotifierProvider.notifier);
+    
+    // Sync input text controller when state.inputText changes (e.g., from dictation)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncInputTextController(state.inputText);
+    });
 
     return WillPopScope(
       onWillPop: _handleCancel,
@@ -445,15 +595,19 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                 // Dictation control
                 _DictationControl(
                   isDictating: state.isDictating,
-                  transcript: state.rawTranscript ?? '',
+                  transcript: state.inputText ?? '',
+                  audioLevel: state.audioLevel,
+                  elapsedDuration: state.elapsedDuration,
+                  errorMessage: state.errorMessage,
                   onStart: () => notifier.startDictation(),
                   onStop: () => notifier.stopDictation(),
+                  onCancel: () => notifier.cancelDictation(),
                 ),
                 const SizedBox(height: 24),
                 
-                // Description input
+                // Input text field
                 Semantics(
-                  label: 'Description input',
+                  label: 'Input text',
                   textField: true,
                   child: TextField(
                     controller: _descriptionController,
@@ -463,7 +617,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                       border: OutlineInputBorder(),
                     ),
                     maxLines: 4,
-                    onChanged: (value) => notifier.updateDescription(value.isEmpty ? null : value),
+                    onChanged: (value) => notifier.updateInputText(value.isEmpty ? null : value),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -532,29 +686,40 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                         ? Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              Semantics(
+                                label: _saveProgressMessage ?? 'Saving memory',
+                                value: _saveProgress != null
+                                    ? '${(_saveProgress! * 100).toInt()}% complete'
+                                    : null,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    ),
+                                    if (_saveProgressMessage != null) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _saveProgressMessage!,
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ],
+                                    if (_saveProgress != null) ...[
+                                      const SizedBox(height: 4),
+                                      LinearProgressIndicator(
+                                        value: _saveProgress,
+                                        backgroundColor: Colors.white.withOpacity(0.3),
+                                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
-                              if (_saveProgressMessage != null) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  _saveProgressMessage!,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                              if (_saveProgress != null) ...[
-                                const SizedBox(height: 4),
-                                LinearProgressIndicator(
-                                  value: _saveProgress,
-                                  backgroundColor: Colors.white.withOpacity(0.3),
-                                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              ],
                             ],
                           )
                         : const Text('Save'),
@@ -667,53 +832,179 @@ class _MemoryTypeToggle extends StatelessWidget {
 class _DictationControl extends StatelessWidget {
   final bool isDictating;
   final String transcript;
+  final double audioLevel;
+  final Duration elapsedDuration;
+  final String? errorMessage;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final VoidCallback onCancel;
 
   const _DictationControl({
     required this.isDictating,
     required this.transcript,
+    this.audioLevel = 0.0,
+    this.elapsedDuration = Duration.zero,
+    this.errorMessage,
     required this.onStart,
     required this.onStop,
+    required this.onCancel,
   });
+
+  /// Format duration as M:SS
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return "$minutes:$seconds";
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Microphone button
-        Semantics(
-          label: isDictating ? 'Stop dictation' : 'Start dictation',
-          button: true,
-          child: Center(
-            child: GestureDetector(
-              onTapDown: (_) => onStart(),
-              onTapUp: (_) => onStop(),
-              onTapCancel: onStop,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isDictating
-                      ? Theme.of(context).colorScheme.error
-                      : Theme.of(context).colorScheme.primary,
+        // When NOT dictating: Show mic button (right aligned, centered)
+        if (!isDictating)
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Semantics(
+                label: 'Start dictation',
+                button: true,
+                child: Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.mic),
+                      iconSize: 32,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      onPressed: onStart,
+                      padding: const EdgeInsets.all(12),
+                      constraints: const BoxConstraints(
+                        minWidth: 60,
+                        minHeight: 60,
+                      ),
+                    ),
+                  ),
                 ),
-                child: Icon(
-                  isDictating ? Icons.stop : Icons.mic,
-                  size: 40,
-                  color: Theme.of(context).colorScheme.onPrimary,
+              ),
+            ],
+          ),
+        
+        // When dictating: Show control row (cancel X, waveform, timer + checkmark)
+        if (isDictating)
+          Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Cancel button (left)
+                Semantics(
+                  label: 'Cancel dictation',
+                  button: true,
+                  child: IconButton(
+                    icon: const Icon(Icons.cancel),
+                    iconSize: 20,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    padding: const EdgeInsets.only(right: 8),
+                    constraints: const BoxConstraints(
+                      minWidth: 30,
+                      minHeight: 30,
+                    ),
+                    onPressed: onCancel,
+                  ),
                 ),
+                
+                // Waveform (middle, expanded)
+                Expanded(
+                  child: Container(
+                    height: 30,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: CustomPaint(
+                      painter: _WaveformPainter(audioLevel: audioLevel),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ),
+                
+                // Timer and checkmark (right)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Timer text
+                    Text(
+                      _formatDuration(elapsedDuration),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 13,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Checkmark button (confirm/stop)
+                    Semantics(
+                      label: 'Stop dictation',
+                      button: true,
+                      child: IconButton(
+                        icon: const Icon(Icons.check_circle),
+                        iconSize: 20,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 30,
+                          minHeight: 30,
+                        ),
+                        onPressed: onStop,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        
+        // Error message display
+        if (errorMessage != null)
+          Semantics(
+            label: 'Error message',
+            liveRegion: true,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(top: 8, bottom: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      errorMessage!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onErrorContainer,
+                          ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
+        
         // Transcript display
         if (transcript.isNotEmpty)
           Container(
             padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(top: 8),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
@@ -727,16 +1018,63 @@ class _DictationControl extends StatelessWidget {
               ),
             ),
           ),
-        if (transcript.isEmpty && !isDictating)
-          Text(
-            'Tap and hold the microphone to start dictating',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-            textAlign: TextAlign.center,
+        
+        // Helper text when idle
+        if (transcript.isEmpty && !isDictating && errorMessage == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Tap the microphone to start dictating',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+              textAlign: TextAlign.center,
+            ),
           ),
       ],
     );
+  }
+}
+
+/// Custom painter for waveform visualization
+class _WaveformPainter extends CustomPainter {
+  final double audioLevel;
+
+  _WaveformPainter({required this.audioLevel});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.fill;
+
+    // Simple waveform visualization: draw bars based on audio level
+    final barCount = 20;
+    final barWidth = size.width / barCount;
+    final spacing = barWidth * 0.2;
+
+    for (int i = 0; i < barCount; i++) {
+      // Vary bar height based on audio level and position
+      final normalizedPosition = i / barCount;
+      final variation = (normalizedPosition * 2 - 1).abs(); // Creates a V shape
+      final barHeight = size.height * audioLevel * (0.3 + variation * 0.7);
+      
+      final x = i * barWidth + spacing / 2;
+      final y = (size.height - barHeight) / 2;
+      
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, barWidth - spacing, barHeight),
+          const Radius.circular(2),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveformPainter oldDelegate) {
+    return oldDelegate.audioLevel != audioLevel;
   }
 }
 

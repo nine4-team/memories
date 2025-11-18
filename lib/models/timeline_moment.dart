@@ -3,11 +3,11 @@ class TimelineMoment {
   final String id;
   final String userId;
   final String title;
-  final String? textDescription;
-  final String? rawTranscript;
+  final String? inputText;
+  final String? processedText;
   final String? generatedTitle;
   final List<String> tags;
-  final String captureType;
+  final String memoryType;
   final DateTime capturedAt;
   final DateTime createdAt;
   final int year;
@@ -23,11 +23,11 @@ class TimelineMoment {
     required this.id,
     required this.userId,
     required this.title,
-    this.textDescription,
-    this.rawTranscript,
+    this.inputText,
+    this.processedText,
     this.generatedTitle,
     required this.tags,
-    required this.captureType,
+    required this.memoryType,
     required this.capturedAt,
     required this.createdAt,
     required this.year,
@@ -40,7 +40,7 @@ class TimelineMoment {
     this.nextCursorId,
   });
 
-  /// Display title - prefers generated title, falls back to title, then "Untitled Moment"
+  /// Display title - prefers generated title, falls back to title, then appropriate "Untitled" text
   String get displayTitle {
     if (generatedTitle != null && generatedTitle!.isNotEmpty) {
       return generatedTitle!;
@@ -48,7 +48,27 @@ class TimelineMoment {
     if (title.isNotEmpty) {
       return title;
     }
-    return 'Untitled Moment';
+    // Return appropriate untitled text based on memory type
+    switch (memoryType.toLowerCase()) {
+      case 'story':
+        return 'Untitled Story';
+      case 'memento':
+        return 'Untitled Memento';
+      case 'moment':
+      default:
+        return 'Untitled Moment';
+    }
+  }
+
+  /// Unified descriptive text getter - prefers processed_text, falls back to input_text
+  String? get displayText {
+    if (processedText != null && processedText!.trim().isNotEmpty) {
+      return processedText!.trim();
+    }
+    if (inputText != null && inputText!.trim().isNotEmpty) {
+      return inputText!.trim();
+    }
+    return null;
   }
 
   /// Create from Supabase RPC response
@@ -57,14 +77,14 @@ class TimelineMoment {
       id: json['id'] as String,
       userId: json['user_id'] as String,
       title: json['title'] as String? ?? '',
-      textDescription: json['text_description'] as String?,
-      rawTranscript: json['raw_transcript'] as String?,
+      inputText: json['input_text'] as String?,
+      processedText: json['processed_text'] as String?,
       generatedTitle: json['generated_title'] as String?,
       tags: (json['tags'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
-      captureType: json['capture_type'] as String? ?? 'moment',
+      memoryType: json['memory_type'] as String? ?? 'moment',
       capturedAt: DateTime.parse(json['captured_at'] as String),
       createdAt: DateTime.parse(json['created_at'] as String),
       year: json['year'] as int,
