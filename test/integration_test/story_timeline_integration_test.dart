@@ -4,20 +4,20 @@ import 'package:integration_test/integration_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:memories/screens/timeline/story_timeline_screen.dart';
 import 'package:memories/screens/moment/moment_detail_screen.dart';
-import '../test/helpers/test_supabase_setup.dart';
+import '../helpers/test_supabase_setup.dart';
 
 /// Integration tests for Story timeline using real Supabase instance
-/// 
+///
 /// These tests use a real Supabase connection (test instance) to verify
 /// end-to-end behavior without mocking.
-/// 
+///
 /// To run these tests:
 /// ```bash
 /// flutter test integration_test/story_timeline_integration_test.dart \
 ///   --dart-define=TEST_SUPABASE_URL=your_test_url \
 ///   --dart-define=TEST_SUPABASE_ANON_KEY=your_test_key
 /// ```
-/// 
+///
 /// Or set environment variables:
 /// ```bash
 /// export TEST_SUPABASE_URL=your_test_url
@@ -38,7 +38,8 @@ void main() {
       } catch (e) {
         // Skip tests if Supabase credentials not configured
         print('Skipping integration tests: $e');
-        print('Set TEST_SUPABASE_URL and TEST_SUPABASE_ANON_KEY to run these tests');
+        print(
+            'Set TEST_SUPABASE_URL and TEST_SUPABASE_ANON_KEY to run these tests');
       }
     });
 
@@ -97,11 +98,11 @@ void main() {
         r'(No stories|Record your first)',
         caseSensitive: false,
       ));
-      
+
       // Either empty state or stories list should be visible
       expect(
-        emptyStateText.evaluate().isNotEmpty || 
-        find.byType(StoryTimelineScreen).evaluate().isNotEmpty,
+        emptyStateText.evaluate().isNotEmpty ||
+            find.byType(StoryTimelineScreen).evaluate().isNotEmpty,
         isTrue,
       );
     });
@@ -172,4 +173,3 @@ bool _isSupabaseConfigured() {
   );
   return testUrl.isNotEmpty && testAnonKey.isNotEmpty;
 }
-

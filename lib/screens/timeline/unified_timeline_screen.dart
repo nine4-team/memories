@@ -10,6 +10,9 @@ import 'package:memories/widgets/memory_card.dart';
 import 'package:memories/widgets/memory_header.dart';
 import 'package:memories/widgets/unified_feed_empty_state.dart';
 import 'package:memories/widgets/unified_feed_skeleton.dart';
+import 'package:memories/widgets/global_search_bar.dart';
+import 'package:memories/widgets/search_results_list.dart';
+import 'package:memories/providers/search_provider.dart';
 import 'package:memories/screens/moment/moment_detail_screen.dart';
 
 /// Unified Timeline screen displaying Stories, Moments, and Mementos
@@ -140,15 +143,45 @@ class _UnifiedTimelineScreenState extends ConsumerState<UnifiedTimelineScreen> {
       ),
       body: Column(
         children: [
-          // Segmented control for filtering
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: UnifiedFeedSegmentedControl(),
+          // Global search bar
+          const GlobalSearchBar(),
+          // Segmented control for filtering (hide when searching)
+          Consumer(
+            builder: (context, ref, child) {
+              final searchQuery = ref.watch(searchQueryProvider);
+              if (searchQuery.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: UnifiedFeedSegmentedControl(),
+                );
+              }
+              return const SizedBox.shrink();
+            },
           ),
-          // Timeline content
+          // Timeline content or search results
           Expanded(
             child: Consumer(
               builder: (context, ref, child) {
+                final searchQuery = ref.watch(searchQueryProvider);
+                final searchResultsState = ref.watch(searchResultsProvider);
+
+                // Show search results if there's an active search query
+                if (searchQuery.isNotEmpty) {
+                  // Show search results list if we have results or are loading
+                  if (searchResultsState.items.isNotEmpty ||
+                      searchResultsState.isLoading) {
+                    return SearchResultsList(
+                      results: searchResultsState.items,
+                      query: searchQuery,
+                      hasMore: searchResultsState.hasMore,
+                      isLoadingMore: searchResultsState.isLoadingMore,
+                    );
+                  }
+                  // Empty/error states are handled by GlobalSearchBar
+                  return const SizedBox.shrink();
+                }
+
+                // Otherwise show timeline content
                 // Watch tab changes
                 final tabState = ref.watch(unifiedFeedTabNotifierProvider);
 

@@ -10,11 +10,12 @@ Purpose
 - Capture the minimally sufficient decisions about scope, UX, data model, infra and constraints so we can write the formal spec.
 
 Scope (what this shaping run will address)
-- Search types: simple keyword/full-text search across **memories of all types** (where `capture_type` is `moment` / `story` / `memento`), including:
-  - memory titles
-  - unified input text (`text_description` fed from `inputText` in the app)
-  - tags
-  - narrative text for voice stories (where available)
+- Search types: simple keyword/full-text search across **memories of all types** (where `memory_type` is `moment` / `story` / `memento`), using the normalized text model from Phase 6:
+  - `title` (current display title)
+  - `generated_title`
+  - `input_text` (raw user text)
+  - `processed_text` (LLM-processed narrative/description, where available)
+  - `tags`
 - UI: persistent search bar in top app header, typed query + instant suggestions (recent queries / top matches), and a results surface with result-type badges (Story/Moment/Memento).
 - Backend: PostgreSQL full-text indexing strategy (tsvector + GIN), mapping which fields to index and ranking approach.
 - Sync/Offline: whether searches should work offline (initial assumption: no — server-side search only), and how results are cached.
@@ -45,15 +46,11 @@ Deliverables for formal spec (later)
 - Integration tests for relevance & perf
 
 Clarifying questions (numbered — focused on concrete implementation details)
-1. MVP agreement: confirm that MVP is **simple keyword search over the current data model only**, with no semantic search, fuzzy matching, or cross-user/global search.
-2. Fields to search and priority (using current, unified naming): confirm relative weight for:
-   - Core memories (single conceptual model, differentiated by `capture_type`): 
-     - `title`
-     - `text_description` (fed from `inputText` in app)
-     - `tags`
-   - Optional story-specific field used by the voice-story pipeline (implementation detail, not a separate conceptual table):
-     - `narrative_text` (additional narrative text associated with story-type memories, wherever it is ultimately stored)
-   - Any other metadata (e.g., location or `capture_type`) that should influence **filtering** or **boosting**, not full-text search directly.
+1. MVP agreement: confirm that MVP is **simple keyword search over the normalized text model only**, with no semantic search, fuzzy matching, or cross-user/global search.
+2. Search vector fields and weights (based on Phase 6 + your confirmation):
+   - Include `title`, `generated_title`, `input_text`, and `processed_text` **with equal weight**.
+   - Include `tags` in the same tsvector with the **same weight** as the other text fields.
+   - All other metadata (e.g., location or `memory_type`) are used only for **filtering** or simple boosting, not as full-text fields.
 3. Scope of instant suggestions/autocomplete: do we want recent queries and popular suggestions only, or live token-by-token suggestions (more infra cost)?
 4. Filters & facets: should users be able to filter results by type (Stories/Moments/Mementos), date range, or media presence (has photos/has audio)? Which filters are required in MVP?
 5. Offline expectations: should search work offline (client-side index) or is server-only acceptable for MVP?

@@ -4,7 +4,9 @@ import 'package:memories/models/timeline_moment.dart';
 import 'package:memories/providers/timeline_provider.dart';
 import 'package:memories/widgets/story_card.dart';
 import 'package:memories/widgets/timeline_header.dart';
-import 'package:memories/widgets/timeline_search_bar.dart';
+import 'package:memories/widgets/global_search_bar.dart';
+import 'package:memories/widgets/search_results_list.dart';
+import 'package:memories/providers/search_provider.dart';
 import 'package:memories/widgets/skeleton_loader.dart';
 import 'package:memories/screens/moment/moment_detail_screen.dart';
 import 'package:memories/providers/timeline_analytics_provider.dart';
@@ -90,7 +92,6 @@ class _StoryTimelineScreenState extends ConsumerState<StoryTimelineScreen> {
   @override
   Widget build(BuildContext context) {
     final timelineState = ref.watch(storyTimelineFeedNotifierProvider);
-    final searchQuery = ref.watch(searchQueryNotifierProvider);
     // TODO: Implement proper connectivity checking
     final isOnline = true;
 
@@ -101,8 +102,8 @@ class _StoryTimelineScreenState extends ConsumerState<StoryTimelineScreen> {
       ),
       body: Column(
         children: [
-          // Search bar
-          const TimelineSearchBar(),
+          // Global search bar
+          const GlobalSearchBar(),
           // Offline banner
           if (!isOnline)
             Container(
@@ -126,9 +127,33 @@ class _StoryTimelineScreenState extends ConsumerState<StoryTimelineScreen> {
                 ],
               ),
             ),
-          // Timeline content
+          // Timeline content or search results
           Expanded(
-            child: _buildTimelineContent(timelineState, searchQuery),
+            child: Consumer(
+              builder: (context, ref, child) {
+                final searchQuery = ref.watch(searchQueryProvider);
+                final searchResultsState = ref.watch(searchResultsProvider);
+
+                // Show search results if there's an active search query
+                if (searchQuery.isNotEmpty) {
+                  // Show search results list if we have results or are loading
+                  if (searchResultsState.items.isNotEmpty ||
+                      searchResultsState.isLoading) {
+                    return SearchResultsList(
+                      results: searchResultsState.items,
+                      query: searchQuery,
+                      hasMore: searchResultsState.hasMore,
+                      isLoadingMore: searchResultsState.isLoadingMore,
+                    );
+                  }
+                  // Empty/error states are handled by GlobalSearchBar
+                  return const SizedBox.shrink();
+                }
+
+                // Otherwise show timeline content
+                return _buildTimelineContent(timelineState, searchQuery);
+              },
+            ),
           ),
         ],
       ),
