@@ -20,7 +20,7 @@ import 'package:memories/widgets/media_tray.dart';
 import 'package:memories/widgets/queue_status_chips.dart';
 
 /// Unified capture screen for creating Moments, Stories, and Mementos
-/// 
+///
 /// Provides:
 /// - Memory type toggles (Moment/Story/Memento)
 /// - Dictation controls
@@ -74,7 +74,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
   Future<void> _handleAddPhoto() async {
     final mediaPicker = ref.read(mediaPickerServiceProvider);
     final notifier = ref.read(captureStateNotifierProvider.notifier);
-    
+
     // Show dialog to choose camera or gallery
     final source = await showDialog<ImageSource?>(
       context: context,
@@ -112,7 +112,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
   Future<void> _handleAddVideo() async {
     final mediaPicker = ref.read(mediaPickerServiceProvider);
     final notifier = ref.read(captureStateNotifierProvider.notifier);
-    
+
     // Show dialog to choose camera or gallery
     final source = await showDialog<ImageSource?>(
       context: context,
@@ -150,7 +150,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
   Future<void> _handleAddTag() async {
     final notifier = ref.read(captureStateNotifierProvider.notifier);
     final textController = TextEditingController();
-    
+
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -187,14 +187,14 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
         ],
       ),
     );
-    
+
     textController.dispose();
   }
 
   Future<void> _handleSave() async {
     final state = ref.read(captureStateNotifierProvider);
     final notifier = ref.read(captureStateNotifierProvider.notifier);
-    
+
     if (!state.canSave) {
       final message = state.memoryType == MemoryType.story
           ? 'Please record audio to save'
@@ -224,9 +224,9 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
       _saveProgressMessage = 'Capturing location...';
       _saveProgress = 0.05;
       setState(() {});
-      
+
       await notifier.captureLocation();
-      
+
       // Step 2: Set captured timestamp
       final capturedAt = DateTime.now();
       notifier.setCapturedAt(capturedAt);
@@ -239,13 +239,13 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
         // Check connectivity to determine if we should queue
         final connectivityService = ref.read(connectivityServiceProvider);
         final isOnline = await connectivityService.isOnline();
-        
+
         try {
           // Queue story for sync (MemorySyncService handles automatic syncing)
           // This queues whenever uploads cannot proceed (offline or when upload service unavailable)
           final storyQueueService = ref.read(offlineStoryQueueServiceProvider);
           final localId = OfflineStoryQueueService.generateLocalId();
-          
+
           // Check for duplicate submissions: if a story with identical content is already queued,
           // update it instead of creating a duplicate. The deterministic local ID prevents
           // duplicate submissions during the same save operation.
@@ -257,10 +257,10 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
             capturedAt: capturedAt,
           );
           await storyQueueService.enqueue(queuedStory);
-          
+
           // Invalidate queue status to refresh UI (shows queued/syncing badges)
           ref.invalidate(queueStatusProvider);
-          
+
           if (mounted) {
             // Reset saving state before navigation
             setState(() {
@@ -268,7 +268,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
               _saveProgressMessage = null;
               _saveProgress = null;
             });
-            
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
@@ -312,7 +312,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
       final saveService = ref.read(memorySaveServiceProvider);
       final queueService = ref.read(offlineQueueServiceProvider);
       MemorySaveResult? result;
-      
+
       try {
         result = await saveService.saveMoment(
           state: finalState,
@@ -334,14 +334,15 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
           capturedAt: capturedAt,
         );
         await queueService.enqueue(queuedMoment);
-        
+
         // Invalidate queue status to refresh UI
         ref.invalidate(queueStatusProvider);
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Memory queued for sync when connection is restored'),
+              content: const Text(
+                  'Memory queued for sync when connection is restored'),
               backgroundColor: Colors.orange,
               duration: const Duration(seconds: 3),
             ),
@@ -361,8 +362,10 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
       if (mounted) {
         final mediaCount = result.photoUrls.length + result.videoUrls.length;
         final locationText = result.hasLocation ? ' with location' : '';
-        final mediaText = mediaCount > 0 ? ' ($mediaCount ${mediaCount == 1 ? 'item' : 'items'})' : '';
-        
+        final mediaText = mediaCount > 0
+            ? ' ($mediaCount ${mediaCount == 1 ? 'item' : 'items'})'
+            : '';
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Memory saved$locationText$mediaText'),
@@ -462,7 +465,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(captureStateNotifierProvider);
     final notifier = ref.read(captureStateNotifierProvider.notifier);
-    
+
     // Sync input text controller when state.inputText changes (e.g., from dictation)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncInputTextController(state.inputText);
@@ -480,114 +483,136 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
             const QueueStatusChips(),
             // Main content
             Expanded(
-              child: SingleChildScrollView(
+              child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Memory type toggles
+                    // Memory type toggles at top
                     _MemoryTypeToggle(
                       selectedType: state.memoryType,
                       onTypeChanged: (type) => notifier.setMemoryType(type),
                     ),
-                    const SizedBox(height: 24),
-
-                    // Media add buttons (Tag, Video, Photo) - positioned above text input
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Semantics(
-                            label: 'Add tag',
-                            button: true,
-                            child: OutlinedButton.icon(
-                              onPressed: _handleAddTag,
-                              icon: const Icon(Icons.tag, size: 18),
-                              label: const Text('Tag', style: TextStyle(fontSize: 13)),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Semantics(
-                            label: 'Add video',
-                            button: true,
-                            child: OutlinedButton.icon(
-                              onPressed: state.canAddVideo ? _handleAddVideo : null,
-                              icon: const Icon(Icons.videocam, size: 18),
-                              label: const Text('Video', style: TextStyle(fontSize: 13)),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Semantics(
-                            label: 'Add photo',
-                            button: true,
-                            child: OutlinedButton.icon(
-                              onPressed: state.canAddPhoto ? _handleAddPhoto : null,
-                              icon: const Icon(Icons.photo_camera, size: 18),
-                              label: const Text('Photo', style: TextStyle(fontSize: 13)),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Swipeable input container (dictation and type modes)
-                    _SwipeableInputContainer(
-                      inputMode: state.inputMode,
-                      memoryType: state.memoryType,
-                      isDictating: state.isDictating,
-                      transcript: state.inputText ?? '',
-                      elapsedDuration: state.elapsedDuration,
-                      errorMessage: state.errorMessage,
-                      descriptionController: _descriptionController,
-                      onInputModeChanged: (mode) => notifier.setInputMode(mode),
-                      onStartDictation: () => notifier.startDictation(),
-                      onStopDictation: () => notifier.stopDictation(),
-                      onCancelDictation: () => notifier.cancelDictation(),
-                      onTextChanged: (value) => notifier.updateInputText(value.isEmpty ? null : value),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Media tray
-                    MediaTray(
-                      photoPaths: state.photoPaths,
-                      videoPaths: state.videoPaths,
-                      onPhotoRemoved: (index) => notifier.removePhoto(index),
-                      onVideoRemoved: (index) => notifier.removeVideo(index),
-                      canAddPhoto: state.canAddPhoto,
-                      canAddVideo: state.canAddVideo,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Display tags as chips if any exist
-                    if (state.tags.isNotEmpty) ...[
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                    // Centered capture controls section
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          for (int i = 0; i < state.tags.length; i++)
-                            InputChip(
-                              label: Text(state.tags[i]),
-                              onDeleted: () => notifier.removeTag(i),
-                              deleteIcon: const Icon(Icons.close, size: 18),
-                              visualDensity: VisualDensity.compact,
-                            ),
+                          // Media add buttons (Tag, Video, Photo)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Semantics(
+                                  label: 'Add tag',
+                                  button: true,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _handleAddTag,
+                                    icon: const Icon(Icons.tag, size: 18),
+                                    label: const Text('Tag',
+                                        style: TextStyle(fontSize: 13)),
+                                    style: OutlinedButton.styleFrom(
+                                      padding:
+                                          const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Semantics(
+                                  label: 'Add video',
+                                  button: true,
+                                  child: OutlinedButton.icon(
+                                    onPressed:
+                                        state.canAddVideo ? _handleAddVideo : null,
+                                    icon: const Icon(Icons.videocam, size: 18),
+                                    label: const Text('Video',
+                                        style: TextStyle(fontSize: 13)),
+                                    style: OutlinedButton.styleFrom(
+                                      padding:
+                                          const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Semantics(
+                                  label: 'Add photo',
+                                  button: true,
+                                  child: OutlinedButton.icon(
+                                    onPressed:
+                                        state.canAddPhoto ? _handleAddPhoto : null,
+                                    icon: const Icon(Icons.photo_camera, size: 18),
+                                    label: const Text('Photo',
+                                        style: TextStyle(fontSize: 13)),
+                                    style: OutlinedButton.styleFrom(
+                                      padding:
+                                          const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Swipeable input container (dictation and type modes) - EXPANDABLE
+                          _SwipeableInputContainer(
+                            inputMode: state.inputMode,
+                            memoryType: state.memoryType,
+                            isDictating: state.isDictating,
+                            transcript: state.inputText ?? '',
+                            elapsedDuration: state.elapsedDuration,
+                            errorMessage: state.errorMessage,
+                            descriptionController: _descriptionController,
+                            onInputModeChanged: (mode) => notifier.setInputMode(mode),
+                            onStartDictation: () => notifier.startDictation(),
+                            onStopDictation: () => notifier.stopDictation(),
+                            onCancelDictation: () => notifier.cancelDictation(),
+                            onTextChanged: (value) => notifier
+                                .updateInputText(value.isEmpty ? null : value),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                    ],
+                    ),
+                    // Media tray and tags at bottom (scrollable if needed)
+                    SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Media tray
+                          MediaTray(
+                            photoPaths: state.photoPaths,
+                            videoPaths: state.videoPaths,
+                            onPhotoRemoved: (index) => notifier.removePhoto(index),
+                            onVideoRemoved: (index) => notifier.removeVideo(index),
+                            canAddPhoto: state.canAddPhoto,
+                            canAddVideo: state.canAddVideo,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Display tags as chips if any exist
+                          if (state.tags.isNotEmpty) ...[
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (int i = 0; i < state.tags.length; i++)
+                                  InputChip(
+                                    label: Text(state.tags[i]),
+                                    onDeleted: () => notifier.removeTag(i),
+                                    deleteIcon: const Icon(Icons.close, size: 18),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -614,7 +639,8 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                     label: 'Save memory',
                     button: true,
                     child: ElevatedButton(
-                      onPressed: (state.canSave && !_isSaving) ? _handleSave : null,
+                      onPressed:
+                          (state.canSave && !_isSaving) ? _handleSave : null,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         minimumSize: const Size(0, 48),
@@ -624,7 +650,8 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Semantics(
-                                  label: _saveProgressMessage ?? 'Saving memory',
+                                  label:
+                                      _saveProgressMessage ?? 'Saving memory',
                                   value: _saveProgress != null
                                       ? '${(_saveProgress! * 100).toInt()}% complete'
                                       : null,
@@ -636,7 +663,9 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                         height: 20,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                  Colors.white),
                                         ),
                                       ),
                                       if (_saveProgressMessage != null) ...[
@@ -650,8 +679,11 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                         const SizedBox(height: 4),
                                         LinearProgressIndicator(
                                           value: _saveProgress,
-                                          backgroundColor: Colors.white.withOpacity(0.3),
-                                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                                          backgroundColor:
+                                              Colors.white.withOpacity(0.3),
+                                          valueColor:
+                                              const AlwaysStoppedAnimation<
+                                                  Color>(Colors.white),
                                         ),
                                       ],
                                     ],
@@ -718,14 +750,16 @@ class _DictationTextContainer extends StatelessWidget {
   final MemoryType memoryType;
   final bool isDictating;
   final bool showSwipeHint;
+  final ScrollController? scrollController;
 
   const _DictationTextContainer({
     required this.transcript,
     required this.memoryType,
     required this.isDictating,
     required this.showSwipeHint,
+    this.scrollController,
   });
-  
+
   /// Get contextual hint text based on memory type (for inside container)
   String _getTapMicText(MemoryType memoryType) {
     switch (memoryType) {
@@ -741,8 +775,9 @@ class _DictationTextContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSimulator = PlatformUtils.isSimulator;
-    
+
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 5),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -753,15 +788,15 @@ class _DictationTextContainer extends StatelessWidget {
           // Determine display text - show immediately without delay
           final displayText = transcript.isNotEmpty
               ? transcript
-              : (isSimulator 
+              : (isSimulator
                   ? 'Dictation unavailable on simulator'
                   : (showSwipeHint ? _getTapMicText(memoryType) : ''));
-          
+
           final isEmpty = transcript.isEmpty && !isDictating;
-          
+
           // Build the transcript widget - use AnimatedSwitcher for smooth transitions
           // When empty, center the placeholder text both vertically and horizontally
-          // When not empty, use SingleChildScrollView to allow scrolling when content exceeds container
+          // When not empty, align content to top-left and allow scrolling when content exceeds container
           final transcriptWidget = isEmpty
               ? Center(
                   child: Semantics(
@@ -773,31 +808,43 @@ class _DictationTextContainer extends StatelessWidget {
                         displayText,
                         key: ValueKey(displayText),
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                         textAlign: TextAlign.center,
                       ),
                     ),
                   ),
                 )
-              : SingleChildScrollView(
-                  child: Semantics(
-                    label: 'Dictation transcript',
-                    liveRegion: true,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 150),
-                      child: Text(
-                        displayText,
-                        key: ValueKey(displayText),
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                        textAlign: TextAlign.start,
+              : ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight,
+                    maxHeight: constraints.maxHeight.isInfinite
+                        ? double.infinity
+                        : constraints.maxHeight,
+                  ),
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    // SingleChildScrollView naturally aligns content to top-left
+                    child: Semantics(
+                      label: 'Dictation transcript',
+                      liveRegion: true,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 150),
+                        child: Text(
+                          displayText,
+                          key: ValueKey(displayText),
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                          textAlign: TextAlign.start,
+                        ),
                       ),
                     ),
                   ),
                 );
-          
+
           // Return the transcript widget - it will expand to fill available space
           // since the parent Container is wrapped in Expanded
           return transcriptWidget;
@@ -806,7 +853,6 @@ class _DictationTextContainer extends StatelessWidget {
     );
   }
 }
-
 
 /// Swipeable input container that allows switching between dictation and type modes
 class _SwipeableInputContainer extends ConsumerStatefulWidget {
@@ -839,13 +885,16 @@ class _SwipeableInputContainer extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_SwipeableInputContainer> createState() => _SwipeableInputContainerState();
+  ConsumerState<_SwipeableInputContainer> createState() =>
+      _SwipeableInputContainerState();
 }
 
-class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContainer> {
+class _SwipeableInputContainerState
+    extends ConsumerState<_SwipeableInputContainer> {
   late PageController _pageController;
   bool _isDragging = false;
   final FocusNode _textFieldFocusNode = FocusNode();
+  final ScrollController _dictationScrollController = ScrollController();
   double? _dragStartX;
   double? _cachedHeight; // Cache height to prevent resizing during swipe
   bool _isTextFieldFocused = false;
@@ -857,14 +906,14 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
     _pageController = PageController(
       initialPage: widget.inputMode == InputMode.dictation ? 0 : 1,
     );
-    
+
     // Listen to page controller position changes to detect dragging
     _pageController.addListener(_onPageControllerChanged);
-    
+
     // Listen to focus changes to update text alignment
     _textFieldFocusNode.addListener(_onFocusChanged);
   }
-  
+
   void _onFocusChanged() {
     if (_textFieldFocusNode.hasFocus != _isTextFieldFocused) {
       setState(() {
@@ -872,13 +921,13 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
       });
     }
   }
-  
+
   void _onPageControllerChanged() {
     if (!_pageController.hasClients) return;
-    
+
     final page = _pageController.page ?? 0;
     final isDragging = page % 1 != 0; // Page is fractional when dragging
-    
+
     if (_isDragging != isDragging) {
       setState(() {
         _isDragging = isDragging;
@@ -896,15 +945,54 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
     // Sync page controller if input mode changed externally
     if (oldWidget.inputMode != widget.inputMode) {
       final targetPage = widget.inputMode == InputMode.dictation ? 0 : 1;
-      if (_pageController.hasClients && _pageController.page?.round() != targetPage) {
+      if (_pageController.hasClients &&
+          _pageController.page?.round() != targetPage) {
         // Reset cached height when mode changes externally to allow recalculation
         _cachedHeight = null;
         _pageController.animateToPage(
           targetPage,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
-        );
+        ).then((_) {
+          // When switching to dictation mode, scroll to the end of the text
+          if (widget.inputMode == InputMode.dictation && widget.transcript.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_dictationScrollController.hasClients) {
+                _dictationScrollController.animateTo(
+                  _dictationScrollController.position.maxScrollExtent,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                );
+              }
+            });
+          }
+          
+          // When switching to type mode, move cursor to the end of the text
+          if (widget.inputMode == InputMode.type && widget.descriptionController.text.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final text = widget.descriptionController.text;
+              widget.descriptionController.selection = TextSelection.fromPosition(
+                TextPosition(offset: text.length),
+              );
+            });
+          }
+        });
       }
+    }
+    
+    // When transcript changes and we're in dictation mode, scroll to end
+    if (widget.inputMode == InputMode.dictation &&
+        oldWidget.transcript != widget.transcript &&
+        widget.transcript.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_dictationScrollController.hasClients) {
+          _dictationScrollController.animateTo(
+            _dictationScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+      });
     }
   }
 
@@ -914,6 +1002,7 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
     _pageController.dispose();
     _textFieldFocusNode.removeListener(_onFocusChanged);
     _textFieldFocusNode.dispose();
+    _dictationScrollController.dispose();
     super.dispose();
   }
 
@@ -923,6 +1012,29 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
       // Reset cached height when page changes to allow recalculation
       _cachedHeight = null;
       widget.onInputModeChanged(newMode);
+      
+      // When switching to dictation mode, scroll to the end of the text
+      if (newMode == InputMode.dictation && widget.transcript.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_dictationScrollController.hasClients) {
+            _dictationScrollController.animateTo(
+              _dictationScrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
+      
+      // When switching to type mode, move cursor to the end of the text
+      if (newMode == InputMode.type && widget.descriptionController.text.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final text = widget.descriptionController.text;
+          widget.descriptionController.selection = TextSelection.fromPosition(
+            TextPosition(offset: text.length),
+          );
+        });
+      }
     }
   }
 
@@ -941,7 +1053,7 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
   @override
   Widget build(BuildContext context) {
     final isIOS = defaultTargetPlatform == TargetPlatform.iOS && !kIsWeb;
-    
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // Calculate max height: screen height minus app bar, queue chips, padding, other content, and navigation bar
@@ -949,30 +1061,25 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
         final screenHeight = MediaQuery.of(context).size.height;
         final maxHeight = screenHeight * 0.4; // Max 40% of screen height
         final minHeight = 200.0; // Minimum height for consistent layout
-        
+
         // Cache height calculation - only recalculate if not dragging or if cached value is null
         // This prevents resizing during swipe transitions
         if (_cachedHeight == null || !_isDragging) {
-          _cachedHeight = constraints.maxHeight.isInfinite 
+          _cachedHeight = constraints.maxHeight.isInfinite
               ? minHeight.clamp(minHeight, maxHeight)
               : constraints.maxHeight.clamp(minHeight, maxHeight);
         }
-        
+
         // Account for simulator banner if shown (it's outside the text container area)
-        final simulatorBannerHeight = (isIOS && PlatformUtils.isSimulator) ? 60.0 : 0.0;
+        final simulatorBannerHeight =
+            (isIOS && PlatformUtils.isSimulator) ? 60.0 : 0.0;
         final adjustedTotalHeight = _cachedHeight! + simulatorBannerHeight;
-        
+
         final hasError = widget.errorMessage != null;
-        
-        // Determine if swipe hints should be visible
-        // Show hints immediately - don't wait for drag state to update
-        final shouldShowDictationHint = widget.transcript.isEmpty && 
-            widget.descriptionController.text.isEmpty &&
-            !widget.isDictating;
-        final shouldShowTypeHint = widget.transcript.isEmpty && 
-            widget.descriptionController.text.isEmpty &&
-            !widget.isDictating;
-        
+
+        // Swipe hints should ALWAYS be visible - never hide them
+        final shouldShowDictationHint = true;
+
         return SizedBox(
           height: adjustedTotalHeight,
           child: PageView(
@@ -989,7 +1096,9 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
                       padding: const EdgeInsets.all(12),
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -997,14 +1106,20 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
                           Icon(
                             Icons.info_outline,
                             size: 20,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Voice dictation is unavailable on iOS Simulator. Please test on a physical device.',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                   ),
                             ),
                           ),
@@ -1019,12 +1134,15 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
                             memoryType: widget.memoryType,
                             isDictating: widget.isDictating,
                             showSwipeHint: shouldShowDictationHint,
+                            scrollController: _dictationScrollController,
                           )
                         : // Platform not supported banner
                         Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
@@ -1032,14 +1150,21 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
                                 Icon(
                                   Icons.info_outline,
                                   size: 20,
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     'Voice dictation is currently available on iOS. Android support coming soon.',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
                                         ),
                                   ),
                                 ),
@@ -1047,44 +1172,59 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
                             ),
                           ),
                   ),
-                  // Swipe hint - consistent positioning
+                  // Swipe hint - ALWAYS visible, never hide
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
-                    child: Opacity(
-                      opacity: (widget.transcript.isEmpty && !widget.isDictating && shouldShowDictationHint) ? 1.0 : 0.0,
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Tap to talk',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
-                                    fontSize: 12,
-                                  ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.arrow_downward,
-                              size: 14,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Swipe to type',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
-                                    fontSize: 12,
-                                  ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.arrow_forward,
-                              size: 14,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
-                            ),
-                          ],
-                        ),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Tap to talk',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant
+                                      .withOpacity(0.6),
+                                  fontSize: 12,
+                                ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_downward,
+                            size: 14,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant
+                                .withOpacity(0.6),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Swipe to type',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant
+                                      .withOpacity(0.6),
+                                  fontSize: 12,
+                                ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward,
+                            size: 14,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant
+                                .withOpacity(0.6),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -1092,8 +1232,13 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
                   AudioControlsDecorator(
                     isListening: widget.isDictating,
                     elapsedTime: widget.elapsedDuration,
-                    onMicPressed: isIOS ? (widget.isDictating ? widget.onStopDictation : widget.onStartDictation) : null,
-                    onCancelPressed: widget.isDictating ? widget.onCancelDictation : null,
+                    onMicPressed: isIOS
+                        ? (widget.isDictating
+                            ? widget.onStopDictation
+                            : widget.onStartDictation)
+                        : null,
+                    onCancelPressed:
+                        widget.isDictating ? widget.onCancelDictation : null,
                     waveformController: ref.watch(waveformControllerProvider),
                     child: const SizedBox(height: 0),
                   ),
@@ -1114,14 +1259,21 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
                             Icon(
                               Icons.error_outline,
                               size: 20,
-                              color: Theme.of(context).colorScheme.onErrorContainer,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onErrorContainer,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 widget.errorMessage!,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onErrorContainer,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onErrorContainer,
                                     ),
                               ),
                             ),
@@ -1131,7 +1283,7 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
                     ),
                 ],
               ),
-          
+
               // Page 1: Type mode
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1148,80 +1300,121 @@ class _SwipeableInputContainerState extends ConsumerState<_SwipeableInputContain
                       onHorizontalDragUpdate: (details) {
                         // If horizontal drag is significant, ensure text field stays unfocused
                         if (_dragStartX != null) {
-                          final deltaX = (details.globalPosition.dx - _dragStartX!).abs();
+                          final deltaX =
+                              (details.globalPosition.dx - _dragStartX!).abs();
                           if (deltaX > 10) {
                             _textFieldFocusNode.unfocus();
                           }
                         }
                       },
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Semantics(
-                        label: 'Input text',
-                        textField: true,
-                        hint: _getPlaceholderText(widget.memoryType),
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final shouldShowPlaceholder = widget.descriptionController.text.isEmpty && !_isTextFieldFocused;
-                            return Stack(
-                              children: [
-                                TextField(
-                                  controller: widget.descriptionController,
-                                  focusNode: _textFieldFocusNode,
-                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurface,
-                                      ),
-                                  decoration: const InputDecoration(
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                  maxLines: null,
-                                  expands: true,
-                                  textAlign: TextAlign.start,
-                                  textAlignVertical: TextAlignVertical.top,
-                                  keyboardType: TextInputType.multiline,
-                                  onChanged: (value) {
-                                    widget.onTextChanged(value);
-                                    // Update placeholder visibility when text changes
-                                    setState(() {});
-                                  },
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 5),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Semantics(
+                          label: 'Input text',
+                          textField: true,
+                          hint: _getPlaceholderText(widget.memoryType),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final shouldShowPlaceholder =
+                                  widget.descriptionController.text.isEmpty &&
+                                      !_isTextFieldFocused;
+                              return ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: constraints.maxHeight,
+                                  maxHeight: constraints.maxHeight.isInfinite
+                                      ? double.infinity
+                                      : constraints.maxHeight,
                                 ),
-                                if (shouldShowPlaceholder)
-                                  IgnorePointer(
-                                    child: SizedBox.expand(
-                                      child: Center(
-                                        child: Text(
-                                          _getPlaceholderText(widget.memoryType),
-                                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                              ),
-                                          textAlign: TextAlign.center,
+                                child: Stack(
+                                  children: [
+                                    TextField(
+                                      controller: widget.descriptionController,
+                                      focusNode: _textFieldFocusNode,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurface,
+                                          ),
+                                      decoration: const InputDecoration(
+                                        border: InputBorder.none,
+                                        contentPadding: EdgeInsets.zero,
+                                      ),
+                                      maxLines: null,
+                                      expands: true,
+                                      textAlign: TextAlign.start,
+                                      textAlignVertical: TextAlignVertical.top,
+                                      keyboardType: TextInputType.multiline,
+                                      onChanged: (value) {
+                                        widget.onTextChanged(value);
+                                        // Update placeholder visibility when text changes
+                                        setState(() {});
+                                      },
+                                    ),
+                                    if (shouldShowPlaceholder)
+                                      IgnorePointer(
+                                        child: SizedBox.expand(
+                                          child: Center(
+                                            child: Text(
+                                              _getPlaceholderText(
+                                                  widget.memoryType),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyLarge
+                                                  ?.copyWith(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                              ],
-                            );
-                          },
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
-                    ),
                   ),
-                  // Swipe hint - consistent positioning
+                  // Swipe hint - ALWAYS visible, never hide
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: _SwipeHint(
                       currentMode: InputMode.type,
-                      isVisible: shouldShowTypeHint,
+                      isVisible: true,
                     ),
                   ),
-                  // Spacer to match AudioControlsDecorator height
-                  const SizedBox(height: 80),
+                  // Spacer to match AudioControlsDecorator height exactly
+                  ExcludeSemantics(
+                    child: Visibility(
+                      visible: false,
+                      maintainState: true,
+                      maintainAnimation: true,
+                      maintainSize: true,
+                      child: AudioControlsDecorator(
+                        isListening: false,
+                        elapsedTime: widget.elapsedDuration,
+                        onMicPressed: null,
+                        onCancelPressed: null,
+                        waveformController:
+                            ref.watch(waveformControllerProvider),
+                        child: const SizedBox(height: 0),
+                      ),
+                    ),
+                  ),
                   // Spacer for error message area (matches dictation mode layout)
                   if (hasError) const SizedBox(height: 60),
                 ],
@@ -1261,14 +1454,20 @@ class _SwipeHint extends StatelessWidget {
               Icon(
                 arrowIcon,
                 size: 14,
-                color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurfaceVariant
+                    .withOpacity(0.5),
               ),
               const SizedBox(width: 4),
             ],
             Text(
               hintText,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurfaceVariant
+                        .withOpacity(0.5),
                     fontSize: 12,
                   ),
             ),
@@ -1277,7 +1476,10 @@ class _SwipeHint extends StatelessWidget {
               Icon(
                 arrowIcon,
                 size: 14,
-                color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurfaceVariant
+                    .withOpacity(0.5),
               ),
             ],
           ],
@@ -1286,4 +1488,3 @@ class _SwipeHint extends StatelessWidget {
     );
   }
 }
-
