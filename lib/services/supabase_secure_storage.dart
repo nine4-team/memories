@@ -51,5 +51,17 @@ class SupabaseSecureStorage extends LocalStorage {
   Future<void> removePersistedSession() async {
     await _storage.delete(key: _persistSessionKey);
   }
-}
 
+  /// Read the full session JSON string from storage
+  /// 
+  /// This returns the complete session JSON that Supabase stores,
+  /// which can be used with setSession() for biometric authentication flows.
+  Future<String?> getSessionJson() async {
+    return _storage.read(key: _persistSessionKey);
+  }
+
+  /// Check if a session JSON exists in storage
+  Future<bool> hasSessionJson() async {
+    return await _storage.containsKey(key: _persistSessionKey);
+  }
+}

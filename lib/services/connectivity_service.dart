@@ -37,7 +37,7 @@ class ConnectivityService {
   /// This implements a simple polling-based connectivity stream that emits
   /// `true` when online and `false` when offline. Values are de-duplicated.
   Stream<bool> get connectivityStream {
-    return Stream<bool>.periodic(_pollInterval)
+    return Stream<void>.periodic(_pollInterval)
         .asyncMap((_) => isOnline())
         .distinct();
   }

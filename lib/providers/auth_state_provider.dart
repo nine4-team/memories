@@ -6,6 +6,7 @@ import 'package:memories/providers/biometric_provider.dart';
 import 'package:memories/services/secure_storage_service.dart';
 import 'package:memories/services/auth_error_handler.dart';
 import 'package:memories/services/biometric_service.dart';
+import 'package:memories/services/supabase_secure_storage.dart';
 
 part 'auth_state_provider.g.dart';
 
@@ -141,11 +142,20 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
               ? DateTime.now().add(Duration(seconds: session.expiresIn!))
               : DateTime.now().add(const Duration(hours: 1));
           
+          // Store session data in custom storage (for biometrics and compatibility)
           await secureStorage.storeSession(
             accessToken: session.accessToken,
             refreshToken: session.refreshToken ?? '',
             expiresAt: expiresAt,
           );
+
+          // Also store the full session JSON for biometric authentication
+          // Read it from Supabase's storage (where it's already persisted)
+          final supabaseStorage = SupabaseSecureStorage();
+          final sessionJson = await supabaseStorage.getSessionJson();
+          if (sessionJson != null && sessionJson.isNotEmpty) {
+            await secureStorage.storeSessionJson(sessionJson);
+          }
         } else {
           await secureStorage.clearSession();
         }
@@ -190,23 +200,36 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
 /// Hydrate session from secure storage on app start
 /// 
 /// This function:
+/// - First checks if Supabase has already auto-hydrated the session
+/// - Uses recoverSession() to let Supabase read its own persisted session
 /// - Checks if biometric authentication is enabled and required
-/// - If biometrics are enabled, prompts for biometric authentication before hydrating session
-/// - Falls back to password if biometric authentication fails
+/// - If biometrics are enabled, prompts for biometric authentication and uses setSession()
+/// - Handles refresh_token_not_found as expected expiration (silently clears storage)
 Future<void> _hydrateSession(
   SupabaseClient supabase,
   SecureStorageService secureStorage,
   BiometricService biometricService,
 ) async {
   try {
-    debugPrint('Checking for stored session...');
-    final hasStoredSession = await secureStorage.hasSession();
-    if (!hasStoredSession) {
-      debugPrint('  No stored session found - user needs to sign in');
+    // First, check if Supabase already has a hydrated session
+    final currentSession = supabase.auth.currentSession;
+    if (currentSession != null) {
+      debugPrint('  ✓ Supabase already has a hydrated session - skipping manual hydration');
+      return;
+    }
+
+    // Check if Supabase has a persisted session in its storage
+    final supabaseStorage = SupabaseSecureStorage();
+    final hasSupabaseSession = await supabaseStorage.hasSessionJson();
+    
+    if (!hasSupabaseSession) {
+      debugPrint('  No stored session found in Supabase storage - user needs to sign in');
+      // Also clear any custom storage to keep them in sync
+      await secureStorage.clearSession();
       return;
     }
     
-    debugPrint('  ✓ Stored session found - hydrating...');
+    debugPrint('  ✓ Stored session found in Supabase storage - recovering...');
 
     // Check if biometric authentication is enabled
     final biometricEnabled = await secureStorage.isBiometricEnabled();
@@ -224,6 +247,8 @@ Future<void> _hydrateSession(
           // Biometric authentication failed - clear session and require password login
           await secureStorage.clearSession();
           await secureStorage.clearBiometricPreference();
+          // Also clear Supabase's persisted session
+          await supabaseStorage.removePersistedSession();
           // Also update Supabase profile to disable biometrics
           try {
             final user = supabase.auth.currentUser;
@@ -237,6 +262,23 @@ Future<void> _hydrateSession(
             // Ignore errors updating profile - user will need to login with password
           }
           return;
+        }
+
+        // Biometric authentication succeeded - use setSession() with stored JSON
+        // Read from SupabaseSecureStorage (where Supabase persists it) for the most up-to-date version
+        final sessionJson = await supabaseStorage.getSessionJson();
+        if (sessionJson != null && sessionJson.isNotEmpty) {
+          debugPrint('  Setting session from stored JSON (biometric authenticated)...');
+          try {
+            await supabase.auth.setSession(sessionJson);
+            debugPrint('  ✓ Session set successfully from stored JSON');
+            // Also update custom storage with the session JSON for future biometric checks
+            await secureStorage.storeSessionJson(sessionJson);
+            return;
+          } catch (e) {
+            debugPrint('  ✗ Failed to set session from JSON: $e');
+            // Fall through to recoverSession() attempt
+          }
         }
       } else {
         // Biometrics no longer available - clear preference
@@ -255,27 +297,46 @@ Future<void> _hydrateSession(
       }
     }
 
-    final refreshToken = await secureStorage.getRefreshToken();
-    if (refreshToken == null || refreshToken.isEmpty) {
-      debugPrint('  No refresh token found');
-      return;
-    }
-
-    debugPrint('  Refreshing session with stored refresh token...');
-    // Attempt to refresh session using stored refresh token
-    final response = await supabase.auth.refreshSession();
-    
-    if (response.session != null) {
-      debugPrint('  ✓ Session refreshed successfully');
-      debugPrint('    User ID: ${response.session!.user.id}');
-      debugPrint('    Email: ${response.session!.user.email}');
-      // Session refreshed successfully, it will be persisted by auth state listener
-      return;
+    // Read session JSON from Supabase's storage and use setSession()
+    // This lets Supabase hydrate from its own persisted session format
+    debugPrint('  Reading session JSON from Supabase storage...');
+    final sessionJson = await supabaseStorage.getSessionJson();
+    if (sessionJson != null && sessionJson.isNotEmpty) {
+      try {
+        debugPrint('  Setting session from Supabase storage...');
+        await supabase.auth.setSession(sessionJson);
+        debugPrint('  ✓ Session set successfully');
+        
+        // Verify session was set
+        final recoveredSession = supabase.auth.currentSession;
+        if (recoveredSession != null) {
+          debugPrint('    User ID: ${recoveredSession.user.id}');
+          debugPrint('    Email: ${recoveredSession.user.email}');
+          // Also store in custom storage for biometrics
+          await secureStorage.storeSessionJson(sessionJson);
+        }
+        return;
+      } on AuthException catch (e) {
+        // Handle refresh_token_not_found as expected expiration
+        if (e.statusCode == 'refresh_token_not_found' || 
+            e.message.contains('Refresh Token Not Found') ||
+            e.message.contains('refresh_token_not_found')) {
+          debugPrint('  Refresh token not found (expected expiration) - clearing storage');
+          await secureStorage.clearSession();
+          await supabaseStorage.removePersistedSession();
+          // Don't surface error - this is expected when token expires
+          return;
+        }
+        // Re-throw other auth errors
+        rethrow;
+      }
     } else {
-      debugPrint('  ✗ Session refresh failed - clearing stored session');
+      debugPrint('  No session JSON found in Supabase storage');
+      await secureStorage.clearSession();
     }
   } catch (e) {
     // If hydration fails, clear stored session
+    debugPrint('  ✗ Session hydration failed: $e');
     await secureStorage.clearSession();
     // Don't throw - let user authenticate fresh
   }

@@ -5,6 +5,7 @@ class SecureStorageKeys {
   static const String accessToken = 'supabase_access_token';
   static const String refreshToken = 'supabase_refresh_token';
   static const String sessionExpiresAt = 'supabase_session_expires_at';
+  static const String sessionJson = 'supabase_session_json'; // Full session JSON for biometrics
   static const String biometricEnabled = 'biometric_enabled';
   
   SecureStorageKeys._();
@@ -87,6 +88,7 @@ class SecureStorageService {
       _storage.delete(key: SecureStorageKeys.accessToken),
       _storage.delete(key: SecureStorageKeys.refreshToken),
       _storage.delete(key: SecureStorageKeys.sessionExpiresAt),
+      _storage.delete(key: SecureStorageKeys.sessionJson),
     ]);
   }
 
@@ -115,5 +117,25 @@ class SecureStorageService {
   Future<void> clearBiometricPreference() async {
     await _storage.delete(key: SecureStorageKeys.biometricEnabled);
   }
-}
 
+  /// Store the full session JSON string (for biometric authentication)
+  /// 
+  /// This stores the exact serialized session JSON that Supabase creates,
+  /// which can be used with setSession() instead of refreshSession().
+  Future<void> storeSessionJson(String sessionJson) async {
+    await _storage.write(
+      key: SecureStorageKeys.sessionJson,
+      value: sessionJson,
+    );
+  }
+
+  /// Retrieve the full session JSON string
+  Future<String?> getSessionJson() async {
+    return await _storage.read(key: SecureStorageKeys.sessionJson);
+  }
+
+  /// Clear session JSON (called when clearing session)
+  Future<void> clearSessionJson() async {
+    await _storage.delete(key: SecureStorageKeys.sessionJson);
+  }
+}

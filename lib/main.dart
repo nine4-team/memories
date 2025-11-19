@@ -70,17 +70,6 @@ class MyApp extends StatelessWidget {
         '/signup': (context) => const SignupScreen(),
         '/password-reset': (context) => const PasswordResetScreen(),
       },
-      onGenerateRoute: (settings) {
-        // Handle OAuth callback route
-        if (settings.name == '/auth-callback') {
-          debugPrint('Received /auth-callback route - returning to AppRouter');
-          return MaterialPageRoute(
-            builder: (context) => const AppRouter(),
-            settings: settings,
-          );
-        }
-        return null;
-      },
     );
   }
 }
