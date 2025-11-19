@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:memories/models/moment_detail.dart';
@@ -70,6 +71,7 @@ class MomentDetailNotifier extends _$MomentDetailNotifier {
 
   /// Load moment detail data
   Future<void> loadMomentDetail() async {
+    debugPrint('[MomentDetailNotifier] Loading moment detail for: $_momentId');
     state = state.copyWith(
       state: MomentDetailState.loading,
       errorMessage: null,
@@ -81,11 +83,19 @@ class MomentDetailNotifier extends _$MomentDetailNotifier {
       final connectivityService = ref.read(connectivityServiceProvider);
       final isOnline = await connectivityService.isOnline();
       
+      debugPrint('[MomentDetailNotifier] Is online: $isOnline');
+      
       // When offline, prefer cache; when online, prefer network (with cache fallback)
       final result = await service.getMomentDetail(
         _momentId,
         preferCache: !isOnline,
       );
+
+      debugPrint('[MomentDetailNotifier] ✓ Loaded moment detail');
+      debugPrint('[MomentDetailNotifier]   From cache: ${result.isFromCache}');
+      debugPrint('[MomentDetailNotifier]   Moment ID: ${result.moment.id}');
+      debugPrint('[MomentDetailNotifier]   Photos: ${result.moment.photos.length}');
+      debugPrint('[MomentDetailNotifier]   Videos: ${result.moment.videos.length}');
 
       state = state.copyWith(
         state: MomentDetailState.loaded,
@@ -93,7 +103,9 @@ class MomentDetailNotifier extends _$MomentDetailNotifier {
         errorMessage: null,
         isFromCache: result.isFromCache,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[MomentDetailNotifier] ✗ Error loading moment detail: $e');
+      debugPrint('[MomentDetailNotifier]   Stack trace: $stackTrace');
       state = state.copyWith(
         state: MomentDetailState.error,
         errorMessage: e.toString(),

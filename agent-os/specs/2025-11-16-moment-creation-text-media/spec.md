@@ -13,7 +13,7 @@ Deliver a unified, dictation-first capture experience that lets users record a M
 - Launching capture opens a full-screen Flutter sheet centered on the in-house dictation plugin.
 - The sheet defaults to `Moment` mode with pill-style toggles to switch to `Story` or `Memento` at any time; switching updates copy/help text but keeps the current transcript/media selections.
 - Users press/hold (or tap) a microphone control to dictate; transcription text is visible and editable. Description input is optional and can remain blank.
-- Title is generated after Save via the LLM from the captured transcript; users can edit the title immediately post-save or later from the detail view.
+- Title is generated after Save via the LLM from the captured transcript; users can edit the title later from the detail view.
 - Media tray sits beneath the transcript with buttons for `Camera`, `Gallery`, and `Voice-only`. Camera opens the built-in capture experience (reusing existing plugin dependencies where possible). Gallery uses `image_picker`. Selected items show as thumbnails with remove icons.
 - Primary action is `Save` (enabled once there is at least transcript text, media, or tags). Secondary actions: `Cancel`, `Discard draft` (if content exists).
 
@@ -40,9 +40,8 @@ Deliver a unified, dictation-first capture experience that lets users record a M
 - Provide a subtle freeform tagging component (chips with typeahead). Tags must be optional, case-insensitive, and trimmed; store separately for reuse.
 
 ### Save Flow & Draft Behavior
-- Save is allowed even if description is empty; the presence of audio transcript, media, or tags counts as “content.”
+- Save is allowed even if description is empty; the presence of audio transcript, media, or tags counts as "content."
 - After Save completes, navigate to the relevant detail screen and surface a toast summarizing uploads.
-- Offer immediate title edit within the confirmation state, pulling from the generated title.
 
 ### Offline Capture & Queueing
 - Allow users to complete the full capture experience without an internet connection; Save persists all transcript text, selected media (paths + metadata), and tags into a durable local queue.

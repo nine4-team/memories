@@ -47,19 +47,13 @@ Phase 3 covers the metadata capture, save pipeline, and title generation UX. Cor
   - State cleanup after successful save
   - Navigation back after save completion
 
-### Task 10: Title Generation + Edit UX ✅
+### Task 10: Title Generation ✅
 - **TitleGenerationService (`lib/services/title_generation_service.dart`)**
   - Calls Supabase edge function `generate-title`
   - Handles authentication via JWT
   - Parses response with title, status, and timestamp
   - Error handling with fallback behavior
-
-- **Title edit dialog**
-  - Inline edit dialog shown after save
-  - Pre-populated with generated title
-  - Option to keep original or save edited version
-  - Updates database if title is edited
-  - 60 character limit enforced
+  - Titles can be edited later from the detail view
 
 ## Gaps & Follow-Ups
 
@@ -197,8 +191,7 @@ Phase 3 covers the metadata capture, save pipeline, and title generation UX. Cor
 4. Verify location permission prompt appears
 5. Verify progress indicators show
 6. Verify success toast appears
-7. Verify title edit dialog appears
-8. Verify navigation back occurs
+7. Verify navigation to detail view occurs
 
 ### Verify database records:
 ```sql

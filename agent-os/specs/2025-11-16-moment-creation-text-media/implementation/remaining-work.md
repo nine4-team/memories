@@ -196,7 +196,6 @@ Review accessibility and localization for the capture flow.
 - [ ] All interactive elements have proper Semantics labels
 - [ ] Progress indicators have semantic labels
 - [ ] Error messages are properly announced
-- [ ] Title edit dialog has proper focus management
 - [ ] All user-facing strings are extracted for localization
 - [ ] Minimum touch target sizes (44px) maintained
 - [ ] Voice-over labels work correctly

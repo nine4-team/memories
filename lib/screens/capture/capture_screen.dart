@@ -9,7 +9,6 @@ import 'package:memories/models/queued_story.dart';
 import 'package:memories/providers/capture_state_provider.dart';
 import 'package:memories/providers/media_picker_provider.dart';
 import 'package:memories/providers/queue_status_provider.dart';
-import 'package:memories/providers/supabase_provider.dart';
 import 'package:memories/services/memory_save_service.dart';
 import 'package:memories/services/offline_queue_service.dart';
 import 'package:memories/services/offline_story_queue_service.dart';
@@ -314,22 +313,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
 
       if (result == null) return; // Should not happen, but safety check
 
-      // Step 4: Show title edit dialog if title was generated
-      
-      if (mounted && result.generatedTitle != null) {
-        final editedTitle = await _showTitleEditDialog(result.generatedTitle!);
-        
-        // Update title if it was edited
-        if (editedTitle != null && editedTitle != result.generatedTitle) {
-          final supabase = ref.read(supabaseClientProvider);
-          await supabase
-              .from('memories')
-              .update({'title': editedTitle})
-              .eq('id', result.momentId);
-        }
-      }
-
-      // Step 5: Show success message and navigate to detail view
+      // Step 4: Show success message and navigate to detail view
       if (mounted) {
         final mediaCount = result.photoUrls.length + result.videoUrls.length;
         final locationText = result.hasLocation ? ' with location' : '';
@@ -429,63 +413,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
       }
     }
   }
-
-  Future<String?> _showTitleEditDialog(String initialTitle) async {
-    final titleController = TextEditingController(text: initialTitle);
-    
-    return showDialog<String>(
-      context: context,
-      builder: (context) => Semantics(
-        label: 'Edit title dialog',
-        child: AlertDialog(
-          title: Semantics(
-            label: 'Edit Title',
-            header: true,
-            child: const Text('Edit Title'),
-          ),
-          content: Semantics(
-            label: 'Title input field',
-            textField: true,
-            hint: 'Enter title',
-            child: TextField(
-              controller: titleController,
-              decoration: const InputDecoration(
-                hintText: 'Enter title',
-                border: OutlineInputBorder(),
-              ),
-              autofocus: true,
-              maxLength: 60,
-            ),
-          ),
-          actions: [
-            Semantics(
-              label: 'Keep original title',
-              button: true,
-              child: TextButton(
-                onPressed: () => Navigator.pop(context, initialTitle),
-                child: const Text('Keep Original'),
-              ),
-            ),
-            Semantics(
-              label: 'Save edited title',
-              button: true,
-              child: TextButton(
-                onPressed: () {
-                  final edited = titleController.text.trim();
-                  Navigator.pop(
-                    context,
-                    edited.isEmpty ? initialTitle : edited,
-                  );
-                },
-                child: const Text('Save'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
 
   @override
   Widget build(BuildContext context) {

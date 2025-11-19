@@ -1,3 +1,6 @@
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
+
 /// Model representing detailed Moment data for the detail view
 class MomentDetail {
   final String id;
@@ -69,6 +72,30 @@ class MomentDetail {
 
   /// Create from Supabase RPC response
   factory MomentDetail.fromJson(Map<String, dynamic> json) {
+    final photosJson = json['photos'] as List<dynamic>?;
+    final photos = photosJson
+            ?.map((e) => PhotoMedia.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [];
+    
+    // Log photo URLs for debugging
+    if (photos.isNotEmpty) {
+      debugPrint('[MomentDetail] Parsed ${photos.length} photos for moment ${json['id']}');
+      for (final photo in photos) {
+        debugPrint('[MomentDetail]   Photo index ${photo.index}: url="${photo.url}"');
+      }
+      developer.log(
+        'MomentDetail.fromJson: Parsed ${photos.length} photos for moment ${json['id']}',
+        name: 'MomentDetail',
+      );
+      for (final photo in photos) {
+        developer.log(
+          '  Photo index ${photo.index}: url="${photo.url}"',
+          name: 'MomentDetail',
+        );
+      }
+    }
+    
     return MomentDetail(
       id: json['id'] as String,
       userId: json['user_id'] as String,
@@ -88,10 +115,7 @@ class MomentDetail {
       locationData: json['location_data'] != null
           ? LocationData.fromJson(json['location_data'] as Map<String, dynamic>)
           : null,
-      photos: (json['photos'] as List<dynamic>?)
-              ?.map((e) => PhotoMedia.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
+      photos: photos,
       videos: (json['videos'] as List<dynamic>?)
               ?.map((e) => VideoMedia.fromJson(e as Map<String, dynamic>))
               .toList() ??

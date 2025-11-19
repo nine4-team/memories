@@ -202,9 +202,8 @@ geolocator: ^12.0.0
      c. Media uploaded to Supabase Storage with progress updates
      d. Moment record created in database
      e. Title generated from transcript (if available)
-     f. Title edit dialog shown (user can edit or keep original)
-     g. Success message displayed
-     h. State cleared and navigation back
+     f. Success message displayed
+     g. State cleared and navigation to detail view
 
 8. **Cancel**
    - If unsaved changes exist, confirmation dialog shown
@@ -292,7 +291,6 @@ geolocator: ^12.0.0
 - [x] Media uploads to Supabase Storage
 - [x] Moment record created in database
 - [x] Title generation works
-- [x] Title edit dialog appears after save
 - [x] Cancel with unsaved changes shows confirmation
 - [x] State clears after save/cancel
 - [x] Error handling works for all failure cases

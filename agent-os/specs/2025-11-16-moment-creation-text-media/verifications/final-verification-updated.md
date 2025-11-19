@@ -63,10 +63,9 @@ The capture UI is fully functional with end-to-end save pipeline, offline queuei
   - Progress callbacks for UI updates
   - Error handling with specific exception types
   - Title generation integration
-- [x] Task 10: Title generation + edit UX
-  - Title edit dialog after save
-  - Inline edit affordance
-  - Database update on title edit
+- [x] Task 10: Title generation
+  - Title generation from transcript
+  - Titles can be edited later from detail view
 
 ### Phase 3b – Offline Capture & Sync ✅
 - [x] Task 11: Offline queue data layer
@@ -91,7 +90,6 @@ The capture UI is fully functional with end-to-end save pipeline, offline queuei
   - Semantic labels added to all interactive elements
   - Progress indicators have semantic labels
   - Error messages use live regions
-  - Title edit dialog has proper focus management
   - Strings centralized in `lib/l10n/capture_strings.dart` (ready for localization)
 - [x] Task 15: Testing & instrumentation
   - Unit tests for `MomentSaveService` (exception types, result structure)
@@ -223,7 +221,6 @@ Buckets configured with appropriate MIME types and RLS policies.
 - Semantic labels on all interactive elements
 - Progress indicators have semantic labels with progress values
 - Error messages use live regions for announcements
-- Title edit dialog has proper focus management
 - Dialog titles and content have semantic headers
 - Button labels are descriptive
 

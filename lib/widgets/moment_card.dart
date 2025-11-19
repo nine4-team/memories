@@ -101,7 +101,7 @@ class MomentCard extends ConsumerWidget {
     }
 
     final media = moment.primaryMedia!;
-    final bucket = media.isPhoto ? 'photos' : 'videos';
+    final bucket = media.isPhoto ? 'moments-photos' : 'moments-videos';
     
     // Get signed URL from cache or generate new one
     final signedUrl = imageCache.getSignedUrl(

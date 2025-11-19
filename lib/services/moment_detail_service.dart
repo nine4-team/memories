@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:memories/models/moment_detail.dart';
@@ -42,12 +43,30 @@ class MomentDetailService {
     }
 
     try {
+      debugPrint('[MomentDetailService] Fetching moment detail for ID: $momentId');
       final response = await _supabase.rpc(
         'get_moment_detail',
         params: {'p_moment_id': momentId},
       ).single();
 
+      debugPrint('[MomentDetailService] Received response from RPC');
+      debugPrint('[MomentDetailService] Response keys: ${response.keys.toList()}');
+      
+      // Log photos array before parsing
+      final photosJson = response['photos'] as List<dynamic>?;
+      debugPrint('[MomentDetailService] Photos array: ${photosJson?.length ?? 0} items');
+      if (photosJson != null && photosJson.isNotEmpty) {
+        for (int i = 0; i < photosJson.length; i++) {
+          final photo = photosJson[i] as Map<String, dynamic>?;
+          debugPrint('[MomentDetailService]   Photo $i: ${photo?.toString()}');
+        }
+      }
+
       final moment = MomentDetail.fromJson(Map<String, dynamic>.from(response));
+      
+      debugPrint('[MomentDetailService] Parsed moment: ${moment.id}');
+      debugPrint('[MomentDetailService]   Photos count: ${moment.photos.length}');
+      debugPrint('[MomentDetailService]   Videos count: ${moment.videos.length}');
       
       // Cache the result for offline access
       await _cacheMomentDetail(momentId, moment);

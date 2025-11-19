@@ -61,16 +61,6 @@ class CaptureStrings {
   static const String itemSingular = 'item';
   static const String itemPlural = 'items';
 
-  // Title edit dialog
-  static const String titleEditDialogLabel = 'Edit title dialog';
-  static const String titleEditDialogTitle = 'Edit Title';
-  static const String titleEditInputLabel = 'Title input field';
-  static const String titleEditInputHint = 'Enter title';
-  static const String titleEditKeepOriginalLabel = 'Keep original title';
-  static const String titleEditKeepOriginalButton = 'Keep Original';
-  static const String titleEditSaveLabel = 'Save edited title';
-  static const String titleEditSaveButton = 'Save';
-
   // Cancel/Discard
   static const String cancelButtonLabel = 'Cancel';
   static const String discardDialogLabel = 'Discard changes confirmation dialog';
