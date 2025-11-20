@@ -133,7 +133,12 @@ class _UnifiedTimelineScreenState extends ConsumerState<UnifiedTimelineScreen> {
     }
   }
 
-  void _scrollToYear(int year) {
+  Future<void> _scrollToYear(int year) async {
+    await _ensureYearDataLoaded(year);
+    await _waitForYearRender(year);
+
+    if (!mounted) return;
+
     if (_activeYear != year) {
       setState(() {
         _activeYear = year;
@@ -142,12 +147,56 @@ class _UnifiedTimelineScreenState extends ConsumerState<UnifiedTimelineScreen> {
 
     final key = _yearKeys[year];
     if (key != null && key.currentContext != null) {
-      Scrollable.ensureVisible(
+      await Scrollable.ensureVisible(
         key.currentContext!,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         alignment: 0.0,
       );
+    }
+  }
+
+  Future<void> _ensureYearDataLoaded(int year) async {
+    final tabState = ref.read(unifiedFeedTabNotifierProvider);
+
+    await tabState.whenData((selectedTypes) async {
+      final controller = unifiedFeedControllerProvider(selectedTypes);
+
+      while (mounted) {
+        final feedState = ref.read(controller);
+        final hasYearLoaded =
+            feedState.memories.any((memory) => memory.year == year);
+        final cannotLoadMore = !feedState.hasMore ||
+            feedState.state == UnifiedFeedState.paginationError;
+        final isCurrentlyLoading = feedState.state == UnifiedFeedState.appending;
+
+        if (hasYearLoaded || cannotLoadMore) {
+          break;
+        }
+
+        if (isCurrentlyLoading) {
+          await Future<void>.delayed(const Duration(milliseconds: 32));
+          continue;
+        }
+
+        await ref.read(controller.notifier).loadMore();
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+      }
+    });
+  }
+
+  Future<void> _waitForYearRender(int year) async {
+    const maxAttempts = 30;
+    int attempts = 0;
+
+    while (mounted && attempts < maxAttempts) {
+      final key = _yearKeys[year];
+      if (key != null && key.currentContext != null) {
+        return;
+      }
+
+      attempts++;
+      await Future<void>.delayed(const Duration(milliseconds: 16));
     }
   }
 
@@ -421,6 +470,12 @@ class _UnifiedTimelineScreenState extends ConsumerState<UnifiedTimelineScreen> {
 
     // Extract years for sidebar
     final years = groupedMemories.keys.toList()..sort((a, b) => b.compareTo(a));
+    final sidebarYearsSet = <int>{
+      ...state.availableYears,
+      ...years,
+    };
+    final sidebarYears = sidebarYearsSet.toList()
+      ..sort((a, b) => b.compareTo(a));
 
     // Keep year marker keys synchronized with the available years
     final yearSet = years.toSet();
@@ -445,9 +500,9 @@ class _UnifiedTimelineScreenState extends ConsumerState<UnifiedTimelineScreen> {
       children: [
         // Year sidebar
         YearSidebar(
-          years: years,
+          years: sidebarYears,
           activeYear: _activeYear,
-          onYearTap: _scrollToYear,
+          onYearTap: (year) => _scrollToYear(year),
         ),
         // Timeline content
         Expanded(

@@ -900,13 +900,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
             Container(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
+                color: Theme.of(context).scaffoldBackgroundColor,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

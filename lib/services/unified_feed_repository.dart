@@ -53,6 +53,11 @@ class UnifiedFeedPageResult {
 class UnifiedFeedRepository {
   final SupabaseClient _supabase;
   static const int _defaultBatchSize = 20;
+  static const _allMemoryTypes = {
+    MemoryType.story,
+    MemoryType.moment,
+    MemoryType.memento,
+  };
 
   UnifiedFeedRepository(this._supabase);
 
@@ -68,16 +73,10 @@ class UnifiedFeedRepository {
     Set<MemoryType>? filters,
     int batchSize = _defaultBatchSize,
   }) async {
-    final allTypes = {
-      MemoryType.story,
-      MemoryType.moment,
-      MemoryType.memento,
-    };
-    
-    final effectiveFilters = filters ?? allTypes;
+    final effectiveFilters = filters ?? _allMemoryTypes;
     
     // Determine if we need to fetch all and filter client-side
-    final shouldFetchAll = effectiveFilters.length == allTypes.length || 
+    final shouldFetchAll = effectiveFilters.length == _allMemoryTypes.length || 
                           effectiveFilters.length == 2;
     
     MemoryType? singleFilter;
@@ -108,7 +107,7 @@ class UnifiedFeedRepository {
         .toList();
 
     // Filter client-side if needed (when 2 types selected or when filtering from 'all')
-    if (shouldFetchAll && effectiveFilters.length < allTypes.length) {
+    if (shouldFetchAll && effectiveFilters.length < _allMemoryTypes.length) {
       final filterSet = effectiveFilters.map((t) => t.apiValue.toLowerCase()).toSet();
       memories = memories.where((memory) {
         return filterSet.contains(memory.memoryType.toLowerCase());
@@ -123,7 +122,7 @@ class UnifiedFeedRepository {
       final lastMemory = memories.last;
       // For client-side filtering, we need to be more conservative about hasMore
       // since we might have filtered out some items
-      if (shouldFetchAll && effectiveFilters.length < allTypes.length) {
+      if (shouldFetchAll && effectiveFilters.length < _allMemoryTypes.length) {
         // If we filtered client-side, we can't be sure if there are more
         // Use the original response length to determine
         hasMore = response.length >= batchSize;
@@ -141,6 +140,41 @@ class UnifiedFeedRepository {
       nextCursor: nextCursor,
       hasMore: hasMore,
     );
+  }
+
+  /// Fetch the complete list of years that contain memories for the current user.
+  /// Honors the same memory type filters as the feed.
+  Future<List<int>> fetchAvailableYears({Set<MemoryType>? filters}) async {
+    final effectiveFilters = filters ?? _allMemoryTypes;
+    MemoryType? singleFilter;
+
+    if (effectiveFilters.length == 1) {
+      singleFilter = effectiveFilters.first;
+    }
+
+    final params = <String, dynamic>{
+      'p_memory_type': singleFilter?.apiValue ?? 'all',
+    };
+
+    final response =
+        await _supabase.rpc('get_unified_timeline_years', params: params);
+
+    if (response is! List) {
+      throw Exception('Invalid response format from get_unified_timeline_years');
+    }
+
+    final years = response.map((entry) {
+      if (entry is int) {
+        return entry;
+      }
+      if (entry is Map<String, dynamic> && entry['year'] != null) {
+        return (entry['year'] as num).toInt();
+      }
+      throw Exception('Unexpected year entry from get_unified_timeline_years');
+    }).toList();
+
+    years.sort((a, b) => b.compareTo(a));
+    return years;
   }
 }
 

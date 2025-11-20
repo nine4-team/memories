@@ -42,6 +42,7 @@ class UnifiedFeedViewState {
   final String? errorMessage;
   final bool hasMore;
   final bool isOffline;
+  final List<int> availableYears;
 
   const UnifiedFeedViewState({
     required this.state,
@@ -50,6 +51,7 @@ class UnifiedFeedViewState {
     this.errorMessage,
     this.hasMore = false,
     this.isOffline = false,
+    this.availableYears = const [],
   });
 
   UnifiedFeedViewState copyWith({
@@ -59,6 +61,7 @@ class UnifiedFeedViewState {
     String? errorMessage,
     bool? hasMore,
     bool? isOffline,
+    List<int>? availableYears,
   }) {
     return UnifiedFeedViewState(
       state: state ?? this.state,
@@ -67,6 +70,7 @@ class UnifiedFeedViewState {
       errorMessage: errorMessage ?? this.errorMessage,
       hasMore: hasMore ?? this.hasMore,
       isOffline: isOffline ?? this.isOffline,
+      availableYears: availableYears ?? this.availableYears,
     );
   }
 }
@@ -108,6 +112,7 @@ class UnifiedFeedController extends _$UnifiedFeedController {
       nextCursor: null,
       hasMore: false,
       isOffline: !isOnline,
+      availableYears: const [],
     );
 
     try {
@@ -236,6 +241,10 @@ class UnifiedFeedController extends _$UnifiedFeedController {
       batchSize: _batchSize,
     );
 
+    final resolvedAvailableYears = append
+        ? state.availableYears
+        : await repository.fetchAvailableYears(filters: _memoryTypeFilters);
+
     stopwatch.stop();
 
     // Track pagination success
@@ -257,6 +266,7 @@ class UnifiedFeedController extends _$UnifiedFeedController {
       hasMore: result.hasMore,
       errorMessage: null,
       isOffline: false,
+      availableYears: resolvedAvailableYears,
     );
   }
 

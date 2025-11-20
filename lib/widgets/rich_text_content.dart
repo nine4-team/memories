@@ -2,27 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
 /// Reusable rich text widget with markdown support and "Read more" functionality
-/// 
+///
 /// Supports markdown/RTF subset (bold, italic, bulleted lists, hyperlinks)
 /// with premium typography styles. Includes animated collapse/expand for
 /// long content with scroll anchor preservation.
 class RichTextContent extends StatefulWidget {
   /// The markdown text content to render
   final String? text;
-  
+
   /// Maximum height in logical pixels before collapsing (default: ~6 lines)
   final double maxCollapsedHeight;
-  
+
   /// Text style for the content (defaults to bodyLarge from theme)
   final TextStyle? textStyle;
-  
+
   /// Color for the "Read more"/"Read less" link
   final Color? linkColor;
 
   const RichTextContent({
     super.key,
     required this.text,
-    this.maxCollapsedHeight = 144.0, // Approximately 6 lines at 24px line height
+    this.maxCollapsedHeight = 220.0,
     this.textStyle,
     this.linkColor,
   });
@@ -46,7 +46,7 @@ class _RichTextContentState extends State<RichTextContent> {
 
   void _measureContent() {
     if (!mounted || _contentKey.currentContext == null) return;
-    
+
     final RenderBox? renderBox =
         _contentKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox != null) {
@@ -84,7 +84,7 @@ class _RichTextContentState extends State<RichTextContent> {
     final measuredContent = _MeasureWidget(
       key: _contentKey,
       onMeasure: _measureContent,
-      child: _buildMarkdownContent(context, textStyle, linkColor, null),
+      child: _buildMarkdownContent(context, textStyle, linkColor),
     );
 
     // If we haven't measured yet or don't need collapse, show full content
@@ -105,16 +105,15 @@ class _RichTextContentState extends State<RichTextContent> {
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
           child: _isExpanded
-              ? _buildMarkdownContent(context, textStyle, linkColor, null)
+              ? _buildMarkdownContent(context, textStyle, linkColor)
               : SizedBox(
                   height: widget.maxCollapsedHeight,
                   child: ClipRect(
                     clipBehavior: Clip.hardEdge,
-                    child: _buildMarkdownContent(
-                      context,
-                      textStyle,
-                      linkColor,
-                      widget.maxCollapsedHeight,
+                    child: SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child:
+                          _buildMarkdownContent(context, textStyle, linkColor),
                     ),
                   ),
                 ),
@@ -138,11 +137,10 @@ class _RichTextContentState extends State<RichTextContent> {
     BuildContext context,
     TextStyle? baseStyle,
     Color linkColor,
-    double? maxHeight,
   ) {
     final theme = Theme.of(context);
-    
-    final markdownBody = MarkdownBody(
+
+    return MarkdownBody(
       data: widget.text!,
       styleSheet: MarkdownStyleSheet(
         // Base paragraph style
@@ -218,8 +216,6 @@ class _RichTextContentState extends State<RichTextContent> {
       shrinkWrap: true,
       softLineBreak: true,
     );
-    
-    return markdownBody;
   }
 }
 
@@ -258,4 +254,3 @@ class _MeasureWidgetState extends State<_MeasureWidget> {
     return widget.child;
   }
 }
-
