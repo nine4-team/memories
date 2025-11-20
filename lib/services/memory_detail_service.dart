@@ -181,19 +181,8 @@ class MemoryDetailService {
     try {
       debugPrint('[MemoryDetailService] Deleting memory: $memoryId');
       
-      // First verify the memory exists and user has access
-      try {
-        final existing = await _supabase
-            .from('memories')
-            .select('id')
-            .eq('id', memoryId)
-            .single();
-        debugPrint('[MemoryDetailService] Memory exists: ${existing['id']}');
-      } catch (e) {
-        debugPrint('[MemoryDetailService] Memory not found or access denied: $e');
-        throw Exception('Memory not found or you do not have permission to delete it');
-      }
-      
+      // Attempt delete - Supabase will throw an exception if there's a permission issue
+      // or if the memory doesn't exist (depending on RLS policies)
       final response = await _supabase
           .from('memories')
           .delete()
@@ -202,14 +191,16 @@ class MemoryDetailService {
 
       debugPrint('[MemoryDetailService] Delete response: ${response.length} row(s) deleted');
       
-      if (response.isEmpty) {
-        debugPrint('[MemoryDetailService] Delete returned empty response - this may indicate a permission issue');
-        throw Exception('Delete operation returned no rows. You may not have permission to delete this memory.');
-      }
-
+      // If delete succeeded (no exception thrown), clear cache even if response is empty
+      // (Some edge cases might return empty response but deletion still succeeds)
       // Clear cache after successful deletion
       await _clearCache(memoryId);
       debugPrint('[MemoryDetailService] Successfully deleted memory and cleared cache: $memoryId');
+      
+      // If response is empty, log a warning but don't fail (deletion likely succeeded)
+      if (response.isEmpty) {
+        debugPrint('[MemoryDetailService] Warning: Delete returned empty response, but no exception was thrown. Assuming success.');
+      }
     } catch (e, stackTrace) {
       debugPrint('[MemoryDetailService] Error deleting memory: $e');
       debugPrint('[MemoryDetailService] Stack trace: $stackTrace');

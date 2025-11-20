@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:memories/models/memory_detail.dart';
+import 'package:memories/models/memory_type.dart';
 import 'package:memories/providers/capture_state_provider.dart';
 import 'package:memories/providers/memory_detail_provider.dart';
 import 'package:memories/providers/timeline_analytics_provider.dart';
-import 'package:memories/providers/timeline_provider.dart';
+import 'package:memories/providers/unified_feed_provider.dart';
+import 'package:memories/providers/unified_feed_tab_provider.dart';
 import 'package:memories/providers/main_navigation_provider.dart';
 import 'package:memories/services/connectivity_service.dart';
 import 'package:memories/widgets/media_strip.dart';
@@ -670,17 +672,21 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
     final notifier = ref.read(memoryDetailNotifierProvider(widget.memoryId).notifier);
     final isStory = memory.memoryType == 'story';
     
-    // Get the appropriate timeline notifier based on memory type
-    final timelineNotifier = isStory
-        ? ref.read(storyTimelineFeedNotifierProvider.notifier)
-        : ref.read(unifiedTimelineFeedNotifierProvider.notifier);
+    // Get unified feed controller for current selected types
+    final tabState = ref.read(unifiedFeedTabNotifierProvider);
+    final selectedTypes = tabState.valueOrNull ?? {
+      MemoryType.story,
+      MemoryType.moment,
+      MemoryType.memento,
+    };
+    final unifiedFeedController = ref.read(unifiedFeedControllerProvider(selectedTypes).notifier);
 
     // Track delete action
     analytics.trackMemoryDetailDelete(memory.id);
 
     try {
-      // Optimistically remove from timeline
-      timelineNotifier.removeMemory(memory.id);
+      // Optimistically remove from unified feed
+      unifiedFeedController.removeMemory(memory.id);
 
       // Delete from backend
       final success = await notifier.deleteMemory();
@@ -688,22 +694,33 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
       if (!context.mounted) return;
 
       if (success) {
-        // Pop detail screen and show success message
-        Navigator.of(context).pop();
         final deleteMessage = isStory 
             ? 'Story deleted' 
             : memory.memoryType == 'memento'
                 ? 'Memento deleted'
                 : 'Moment deleted';
+        
+        // Refresh unified feed to ensure consistency (memory is gone from DB)
+        unifiedFeedController.refresh();
+        
+        // Show success message first (will be visible briefly before pop)
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(deleteMessage),
             duration: const Duration(seconds: 2),
           ),
         );
+        
+        // Pop detail screen immediately after showing message
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+        
+        // Navigate to timeline screen
+        ref.read(mainNavigationTabNotifierProvider.notifier).switchToTimeline();
       } else {
-        // Refresh timeline to restore the memory if delete failed
-        timelineNotifier.refresh();
+        // Refresh unified feed to restore the memory if delete failed
+        unifiedFeedController.refresh();
         final errorMessage = isStory 
             ? 'Failed to delete story. Please try again.'
             : memory.memoryType == 'memento'
@@ -721,23 +738,40 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
       debugPrint('[MemoryDetailScreen] Error in _handleDelete: $e');
       debugPrint('[MemoryDetailScreen] Stack trace: $stackTrace');
       
-      // Refresh timeline to restore the memory
-      timelineNotifier.refresh();
+      // Check if the error indicates the memory was actually deleted
+      final errorString = e.toString().toLowerCase();
+      final mightBeDeleted = errorString.contains('not found') || 
+                            errorString.contains('does not exist') ||
+                            errorString.contains('already deleted');
       
-      if (!context.mounted) return;
-      
-      final errorMessage = isStory 
-          ? 'Failed to delete story: ${e.toString()}'
-          : memory.memoryType == 'memento'
-              ? 'Failed to delete memento: ${e.toString()}'
-              : 'Failed to delete memory: ${e.toString()}';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      if (mightBeDeleted) {
+        // Memory might have been deleted despite the error - navigate away
+        debugPrint('[MemoryDetailScreen] Error suggests memory was deleted, navigating away');
+        if (context.mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+        
+        // Navigate to timeline screen
+        ref.read(mainNavigationTabNotifierProvider.notifier).switchToTimeline();
+      } else {
+        // Refresh unified feed to restore the memory
+        unifiedFeedController.refresh();
+        
+        if (!context.mounted) return;
+        
+        final errorMessage = isStory 
+            ? 'Failed to delete story: ${e.toString()}'
+            : memory.memoryType == 'memento'
+                ? 'Failed to delete memento: ${e.toString()}'
+                : 'Failed to delete memory: ${e.toString()}';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 

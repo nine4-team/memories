@@ -200,6 +200,14 @@ class UnifiedFeedController extends _$UnifiedFeedController {
     await loadInitial();
   }
 
+  /// Remove a memory from the feed (optimistic update)
+  /// 
+  /// [memoryId] is the ID of the memory to remove
+  void removeMemory(String memoryId) {
+    final updatedMemories = state.memories.where((m) => m.id != memoryId).toList();
+    state = state.copyWith(memories: updatedMemories);
+  }
+
   /// Update the memory type filters and reload
   Future<void> setFilter(Set<MemoryType> filters) async {
     _memoryTypeFilters = filters;
