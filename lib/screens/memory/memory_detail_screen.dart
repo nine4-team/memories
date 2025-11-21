@@ -5,7 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:memories/models/memory_detail.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/models/memory_processing_status.dart';
-import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/providers/capture_state_provider.dart';
 import 'package:memories/providers/memory_detail_provider.dart';
 import 'package:memories/providers/offline_memory_detail_provider.dart';
@@ -15,8 +15,7 @@ import 'package:memories/providers/unified_feed_tab_provider.dart';
 import 'package:memories/providers/main_navigation_provider.dart';
 import 'package:memories/providers/memory_processing_status_provider.dart';
 import 'package:memories/services/connectivity_service.dart';
-import 'package:memories/services/offline_queue_service.dart';
-import 'package:memories/services/offline_story_queue_service.dart';
+import 'package:memories/services/offline_memory_queue_service.dart';
 import 'package:memories/widgets/media_strip.dart';
 import 'package:memories/widgets/media_preview.dart';
 import 'package:memories/widgets/memory_metadata_section.dart';
@@ -162,19 +161,12 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
     WidgetRef ref,
     String localId,
   ) async {
-    final queueService = ref.read(offlineQueueServiceProvider);
-    final storyQueueService = ref.read(offlineStoryQueueServiceProvider);
+    final queueService = ref.read(offlineMemoryQueueServiceProvider);
 
-    // Try to find in main queue (moments/mementos)
-    final queuedMoment = await queueService.getByLocalId(localId);
-    if (queuedMoment != null) {
-      return _mapQueueStatusToOfflineSyncStatus(queuedMoment.status);
-    }
-
-    // Try to find in story queue
-    final queuedStory = await storyQueueService.getByLocalId(localId);
-    if (queuedStory != null) {
-      return _mapQueueStatusToOfflineSyncStatus(queuedStory.status);
+    // Find in unified queue
+    final queuedMemory = await queueService.getByLocalId(localId);
+    if (queuedMemory != null) {
+      return _mapQueueStatusToOfflineSyncStatus(queuedMemory.status);
     }
 
     // Default to queued if not found
@@ -1148,8 +1140,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
     MemoryDetail memory,
   ) async {
     final analytics = ref.read(timelineAnalyticsServiceProvider);
-    final queueService = ref.read(offlineQueueServiceProvider);
-    final storyQueueService = ref.read(offlineStoryQueueServiceProvider);
+    final queueService = ref.read(offlineMemoryQueueServiceProvider);
     
     // Track delete action
     analytics.trackMemoryDetailDelete(memory.id);
@@ -1160,13 +1151,8 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
     final canPop = navigator.canPop();
     
     try {
-      // Determine which queue service to use based on memory type
-      if (memory.memoryType == 'story') {
-        await storyQueueService.remove(memory.id);
-      } else {
-        // Moments and mementos use the main queue
-        await queueService.remove(memory.id);
-      }
+      // Remove from unified queue (handles all memory types)
+      await queueService.remove(memory.id);
       
       // Queue-change event will drive unified feed update automatically
       // No need to manually remove from feed here

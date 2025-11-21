@@ -1,10 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/models/local_memory_preview.dart';
 import 'package:memories/services/local_memory_preview_store.dart';
-import 'package:memories/services/offline_queue_service.dart';
-import 'package:memories/services/offline_story_queue_service.dart';
+import 'package:memories/services/offline_memory_queue_service.dart';
 import 'package:memories/services/offline_queue_to_timeline_adapter.dart';
 import 'package:memories/services/preview_index_to_timeline_adapter.dart';
 
@@ -31,7 +30,7 @@ class UnifiedFeedCursor {
   }
 
   /// Create cursor from last item in response
-  factory UnifiedFeedCursor.fromTimelineMoment(TimelineMoment moment) {
+  factory UnifiedFeedCursor.fromTimelineMemory(TimelineMemory moment) {
     return UnifiedFeedCursor(
       createdAt: moment.createdAt,
       id: moment.id,
@@ -41,7 +40,7 @@ class UnifiedFeedCursor {
 
 /// Result of fetching a page of unified feed
 class UnifiedFeedPageResult {
-  final List<TimelineMoment> memories;
+  final List<TimelineMemory> memories;
   final UnifiedFeedCursor? nextCursor;
   final bool hasMore;
 
@@ -55,13 +54,12 @@ class UnifiedFeedPageResult {
 /// Repository for fetching unified feed data
 /// 
 /// Handles API calls to the unified feed endpoint, cursor tracking,
-/// and exposes typed DTOs (TimelineMoment).
+/// and exposes typed DTOs (TimelineMemory).
 /// 
 /// Phase 2: Integrates preview index and offline queues for offline support.
 class UnifiedFeedRepository {
   final SupabaseClient _supabase;
-  final OfflineQueueService _offlineQueueService;
-  final OfflineStoryQueueService _offlineStoryQueueService;
+  final OfflineMemoryQueueService _offlineQueueService;
   final LocalMemoryPreviewStore _localPreviewStore;
   static const int _defaultBatchSize = 20;
   static const _allMemoryTypes = {
@@ -73,7 +71,6 @@ class UnifiedFeedRepository {
   UnifiedFeedRepository(
     this._supabase,
     this._offlineQueueService,
-    this._offlineStoryQueueService,
     this._localPreviewStore,
   );
 
@@ -119,7 +116,7 @@ class UnifiedFeedRepository {
     }
 
     var memories = response
-        .map((json) => TimelineMoment.fromJson(json as Map<String, dynamic>))
+        .map((json) => TimelineMemory.fromJson(json as Map<String, dynamic>))
         .toList();
 
     // Filter client-side if needed (when 2 types selected or when filtering from 'all')
@@ -147,7 +144,7 @@ class UnifiedFeedRepository {
       }
       
       if (hasMore) {
-        nextCursor = UnifiedFeedCursor.fromTimelineMoment(lastMemory);
+        nextCursor = UnifiedFeedCursor.fromTimelineMemory(lastMemory);
       }
     }
 
@@ -196,31 +193,20 @@ class UnifiedFeedRepository {
   /// Fetch queued memories as timeline items
   /// 
   /// Converts queued offline memories (moments, mementos, stories) into
-  /// TimelineMoment instances for the unified feed.
-  Future<List<TimelineMoment>> fetchQueuedMemories({
+  /// TimelineMemory instances for the unified feed.
+  Future<List<TimelineMemory>> fetchQueuedMemories({
     Set<MemoryType>? filters,
   }) async {
     final effectiveFilters = filters ?? _allMemoryTypes;
 
-    final results = <TimelineMoment>[];
+    final results = <TimelineMemory>[];
 
-    // Moments + mementos
-    if (effectiveFilters.contains(MemoryType.moment) ||
-        effectiveFilters.contains(MemoryType.memento)) {
-      final queued = await _offlineQueueService.getAllQueued();
-      for (final item in queued) {
-        final type = MemoryTypeExtension.fromApiValue(item.memoryType);
-        if (effectiveFilters.contains(type)) {
-          results.add(OfflineQueueToTimelineAdapter.fromQueuedMoment(item));
-        }
-      }
-    }
-
-    // Stories
-    if (effectiveFilters.contains(MemoryType.story)) {
-      final queuedStories = await _offlineStoryQueueService.getAllQueued();
-      for (final story in queuedStories) {
-        results.add(OfflineQueueToTimelineAdapter.fromQueuedStory(story));
+    // Get all queued memories from unified queue
+    final queued = await _offlineQueueService.getAllQueued();
+    for (final item in queued) {
+      final type = MemoryTypeExtension.fromApiValue(item.memoryType);
+      if (effectiveFilters.contains(type)) {
+        results.add(OfflineQueueToTimelineAdapter.fromQueuedMemory(item));
       }
     }
 
@@ -231,8 +217,8 @@ class UnifiedFeedRepository {
   /// Fetch preview-index memories as timeline items
   /// 
   /// Reads stored previews from the local preview index and converts them
-  /// into TimelineMoment instances for offline timeline rendering.
-  Future<List<TimelineMoment>> fetchPreviewIndexMemories({
+  /// into TimelineMemory instances for offline timeline rendering.
+  Future<List<TimelineMemory>> fetchPreviewIndexMemories({
     Set<MemoryType>? filters,
     int limit = 200,
   }) async {

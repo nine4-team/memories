@@ -46,8 +46,8 @@ class MemoryDetailService {
       debugPrint(
           '[MemoryDetailService] Fetching memory detail for ID: $memoryId');
       final response = await _supabase.rpc(
-        'get_moment_detail',
-        params: {'p_moment_id': memoryId},
+        'get_memory_detail',
+        params: {'p_memory_id': memoryId},
       ).single();
 
       debugPrint('[MemoryDetailService] Received response from RPC');

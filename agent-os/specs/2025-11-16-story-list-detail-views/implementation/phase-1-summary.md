@@ -47,18 +47,18 @@ Phase 1 implements the data and backend alignment for Story list and detail view
 
 **Deliverables:**
 - Story detail audit: `implementation/story-detail-audit.md`
-- Verified `get_moment_detail` returns all required fields
+- Verified `get_memory_detail` returns all required fields
 - Documented missing audio fields for future implementation
 
 **Key Findings:**
-- ✅ All narrative/text fields available: `text_description`, `raw_transcript`, `generated_title`
+- ✅ All narrative/text fields available: `processed_text`, `input_text`, `generated_title`
 - ✅ All timestamp fields available: `captured_at`, `created_at`, `updated_at`
 - ✅ Related memories arrays available: `related_stories`, `related_mementos` (empty until junction tables exist)
 - ❌ Audio fields missing: `audio_url`, `audio_duration`, `audio_path` (to be added in future)
 
 **Field Usage:**
 - Title: `generated_title` → `title` → "Untitled Story"
-- Narrative: `text_description` → `raw_transcript` → placeholder
+- Narrative: `processed_text` → `input_text` → placeholder
 - Timestamps: `captured_at` for display, `updated_at` for cache busting
 
 ### 4. ✅ Propagate list updates after edit/delete
@@ -104,9 +104,9 @@ await supabase.rpc('get_timeline_feed', params: {
 });
 ```
 
-### `get_moment_detail`
+### `get_memory_detail`
 
-**Status:** No changes needed - already supports Stories via `capture_type` field
+**Status:** No changes needed - already supports all memory types via `memory_type` field
 
 **Fields Available:**
 - All narrative/text fields ✅
@@ -154,7 +154,7 @@ Phase 2 will implement the Flutter timeline experience:
 ## Notes
 
 - The `get_timeline_feed` function now supports filtering by memory type while maintaining backward compatibility
-- Story detail endpoint (`get_moment_detail`) already works for Stories - no changes needed
+- Story detail endpoint (`get_memory_detail`) already works for all memory types - no changes needed
 - Audio fields (`audio_url`, `audio_duration`) are not yet available but documented for future implementation
 - Cache invalidation uses explicit patterns at call sites (simple and predictable)
 - Related memories arrays are empty until junction tables are implemented

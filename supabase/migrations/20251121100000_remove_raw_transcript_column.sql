@@ -259,7 +259,152 @@ COMMENT ON FUNCTION public.get_timeline_feed IS 'Fetches timeline feed with curs
 -- Grant execute permission to authenticated users
 GRANT EXECUTE ON FUNCTION public.get_timeline_feed TO authenticated;
 
--- Step 3: Drop the raw_transcript column from memories table
+-- Step 3: Rename get_moment_detail to get_memory_detail and remove raw_transcript
+DROP FUNCTION IF EXISTS public.get_moment_detail(UUID);
+DROP FUNCTION IF EXISTS public.get_memory_detail(UUID);
+
+CREATE OR REPLACE FUNCTION public.get_memory_detail(p_memory_id UUID)
+RETURNS TABLE(
+  id UUID,
+  user_id UUID,
+  title TEXT,
+  input_text TEXT,
+  processed_text TEXT,
+  generated_title TEXT,
+  tags TEXT[],
+  memory_type TEXT,
+  captured_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  public_share_token TEXT,
+  location_data JSONB,
+  photos JSONB[],
+  videos JSONB[],
+  related_stories UUID[],
+  related_mementos UUID[]
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_user_id UUID;
+  v_memory RECORD;
+  v_location_data JSONB;
+  v_photos JSONB[] := ARRAY[]::JSONB[];
+  v_videos JSONB[] := ARRAY[]::JSONB[];
+  v_photo_url TEXT;
+  v_video_url TEXT;
+  v_photo_index INT := 0;
+  v_video_index INT := 0;
+BEGIN
+  -- Get authenticated user ID
+  v_user_id := auth.uid();
+  
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized: User must be authenticated';
+  END IF;
+  
+  -- Fetch the memory record (removed raw_transcript from SELECT)
+  SELECT 
+    m.id,
+    m.user_id,
+    m.title,
+    m.input_text,
+    m.processed_text,
+    m.generated_title,
+    COALESCE(m.tags, '{}'::TEXT[]) as tags,
+    m.memory_type::TEXT,
+    COALESCE(m.device_timestamp, m.created_at) as captured_at,
+    m.created_at,
+    m.updated_at,
+    m.captured_location,
+    m.location_status,
+    m.photo_urls,
+    m.video_urls
+  INTO v_memory
+  FROM public.memories m
+  WHERE m.id = p_memory_id
+    AND m.user_id = v_user_id;
+  
+  -- Check if memory was found
+  IF v_memory.id IS NULL THEN
+    RAISE EXCEPTION 'Not Found: Memory not found or user does not have access';
+  END IF;
+  
+  -- Build location_data JSONB object
+  IF v_memory.captured_location IS NOT NULL THEN
+    -- Extract latitude and longitude from PostGIS geography point
+    v_location_data := jsonb_build_object(
+      'latitude', ST_Y(v_memory.captured_location::geometry)::DOUBLE PRECISION,
+      'longitude', ST_X(v_memory.captured_location::geometry)::DOUBLE PRECISION,
+      'status', v_memory.location_status
+      -- Note: city and state would require reverse geocoding service
+      -- For now, returning NULL for these fields as they're not stored
+    );
+  ELSE
+    v_location_data := NULL;
+  END IF;
+  
+  -- Build photos array from photo_urls
+  IF v_memory.photo_urls IS NOT NULL AND array_length(v_memory.photo_urls, 1) > 0 THEN
+    FOREACH v_photo_url IN ARRAY v_memory.photo_urls
+    LOOP
+      v_photos := v_photos || jsonb_build_object(
+        'url', v_photo_url,
+        'index', v_photo_index,
+        'width', NULL,
+        'height', NULL,
+        'caption', NULL
+      );
+      v_photo_index := v_photo_index + 1;
+    END LOOP;
+  END IF;
+  
+  -- Build videos array from video_urls
+  IF v_memory.video_urls IS NOT NULL AND array_length(v_memory.video_urls, 1) > 0 THEN
+    FOREACH v_video_url IN ARRAY v_memory.video_urls
+    LOOP
+      v_videos := v_videos || jsonb_build_object(
+        'url', v_video_url,
+        'index', v_video_index,
+        'duration', NULL,
+        'poster_url', NULL,
+        'caption', NULL
+      );
+      v_video_index := v_video_index + 1;
+    END LOOP;
+  END IF;
+  
+  -- Return the result (removed raw_transcript from RETURN QUERY)
+  RETURN QUERY SELECT
+    v_memory.id,
+    v_memory.user_id,
+    v_memory.title,
+    v_memory.input_text,
+    v_memory.processed_text,
+    v_memory.generated_title,
+    v_memory.tags,
+    v_memory.memory_type,
+    v_memory.captured_at,
+    v_memory.created_at,
+    v_memory.updated_at,
+    NULL::TEXT as public_share_token, -- Not implemented yet
+    v_location_data,
+    v_photos,
+    v_videos,
+    ARRAY[]::UUID[] as related_stories, -- Junction tables not created yet
+    ARRAY[]::UUID[] as related_mementos -- Junction tables not created yet
+  ;
+END;
+$$;
+
+-- Add comment to function
+COMMENT ON FUNCTION public.get_memory_detail IS 'Fetches detailed memory data by ID for any memory type (moment, story, memento). Returns all fields needed for memory detail view including photos, videos, location data, and related memories.';
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION public.get_memory_detail TO authenticated;
+
+-- Step 4: Drop the raw_transcript column from memories table
 ALTER TABLE public.memories
   DROP COLUMN IF EXISTS raw_transcript;
 

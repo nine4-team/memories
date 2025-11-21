@@ -2,10 +2,10 @@ import 'dart:io';
 import 'dart:async';
 import 'package:memories/models/capture_state.dart';
 import 'package:memories/models/memory_type.dart';
+import 'package:memories/models/queued_memory.dart';
 import 'package:memories/providers/supabase_provider.dart';
 import 'package:memories/services/connectivity_service.dart';
-import 'package:memories/services/offline_queue_service.dart';
-import 'package:memories/services/offline_story_queue_service.dart';
+import 'package:memories/services/offline_memory_queue_service.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -41,31 +41,27 @@ typedef SaveProgressCallback = void Function({
 MemorySaveService memorySaveService(MemorySaveServiceRef ref) {
   final supabase = ref.watch(supabaseClientProvider);
   final connectivityService = ref.watch(connectivityServiceProvider);
-  final offlineQueueService = ref.watch(offlineQueueServiceProvider);
-  final offlineStoryQueueService = ref.watch(offlineStoryQueueServiceProvider);
+  final offlineMemoryQueueService = ref.watch(offlineMemoryQueueServiceProvider);
   return MemorySaveService(
     supabase,
     connectivityService,
-    offlineQueueService,
-    offlineStoryQueueService,
+    offlineMemoryQueueService,
   );
 }
 
 class MemorySaveService {
   final SupabaseClient _supabase;
   final ConnectivityService _connectivityService;
-  final OfflineQueueService _offlineQueueService;
-  final OfflineStoryQueueService _offlineStoryQueueService;
-  static const String _photosBucket = 'moments-photos';
-  static const String _videosBucket = 'moments-videos';
+  final OfflineMemoryQueueService _offlineMemoryQueueService;
+  static const String _photosBucket = 'memories-photos';
+  static const String _videosBucket = 'memories-videos';
   static const int _maxRetries = 3;
   static const Duration _uploadTimeout = Duration(seconds: 30);
 
   MemorySaveService(
     this._supabase,
     this._connectivityService,
-    this._offlineQueueService,
-    this._offlineStoryQueueService,
+    this._offlineMemoryQueueService,
   );
 
   /// Save a memory with all its metadata
@@ -73,12 +69,12 @@ class MemorySaveService {
   /// This method:
   /// 1. Checks connectivity - queues if offline
   /// 2. Uploads photos and videos to Supabase Storage (with retry logic)
-  /// 3. Creates the moment record in the database
+  /// 3. Creates the memory record in the database
   /// 4. Optionally generates a title if transcript is available
   ///
-  /// Returns the saved moment ID and generated title (if any)
+  /// Returns the saved memory ID and generated title (if any)
   /// Throws OfflineException if offline (caller should handle queueing)
-  Future<MemorySaveResult> saveMoment({
+  Future<MemorySaveResult> saveMemory({
     required CaptureState state,
     SaveProgressCallback? onProgress,
   }) async {
@@ -86,7 +82,7 @@ class MemorySaveService {
     final isOnline = await _connectivityService.isOnline();
     if (!isOnline) {
       throw OfflineException(
-          'Device is offline. Moment will be queued for sync.');
+          'Device is offline. Memory will be queued for sync.');
     }
 
     try {
@@ -222,8 +218,8 @@ class MemorySaveService {
         locationWkt = 'POINT(${state.longitude} ${state.latitude})';
       }
 
-      // Step 3: Create moment record
-      onProgress?.call(message: 'Saving moment...', progress: 0.7);
+      // Step 3: Create memory record
+      onProgress?.call(message: 'Saving memory...', progress: 0.7);
       final now = DateTime.now().toUtc();
 
       final momentData = {
@@ -368,7 +364,7 @@ class MemorySaveService {
       }
 
       // Generic error
-      throw SaveException('Failed to save moment: ${e.toString()}');
+      throw SaveException('Failed to save memory: ${e.toString()}');
     }
   }
 
@@ -709,19 +705,7 @@ class MemorySaveService {
     required String localId,
     required CaptureState state,
   }) async {
-    if (state.memoryType == MemoryType.story) {
-      await _updateQueuedStory(localId: localId, state: state);
-    } else {
-      await _updateQueuedMoment(localId: localId, state: state);
-    }
-  }
-
-  /// Update a queued moment
-  Future<void> _updateQueuedMoment({
-    required String localId,
-    required CaptureState state,
-  }) async {
-    final existing = await _offlineQueueService.getByLocalId(localId);
+    final existing = await _offlineMemoryQueueService.getByLocalId(localId);
     if (existing == null) {
       throw Exception('Queued memory not found: $localId');
     }
@@ -732,31 +716,10 @@ class MemorySaveService {
       createdAt: existing.createdAt,
       retryCount: existing.retryCount,
       status: existing.status,
-      serverMomentId: existing.serverMomentId,
+      serverMemoryId: existing.serverMemoryId,
     );
 
-    await _offlineQueueService.update(updated);
-  }
-
-  /// Update a queued story
-  Future<void> _updateQueuedStory({
-    required String localId,
-    required CaptureState state,
-  }) async {
-    final existing = await _offlineStoryQueueService.getByLocalId(localId);
-    if (existing == null) {
-      throw Exception('Queued story not found: $localId');
-    }
-
-    final updated = existing.copyWithFromCaptureState(
-      state: state,
-      createdAt: existing.createdAt,
-      retryCount: existing.retryCount,
-      status: existing.status,
-      serverStoryId: existing.serverStoryId,
-    );
-
-    await _offlineStoryQueueService.update(updated);
+    await _offlineMemoryQueueService.update(updated);
   }
 }
 

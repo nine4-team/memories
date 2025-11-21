@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/providers/supabase_provider.dart';
 import 'package:memories/providers/timeline_image_cache_provider.dart';
@@ -14,7 +14,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// and friendly timestamp identical to Stories. Uses the same card container styles
 /// as MomentCard and StoryCard for visual consistency.
 class MementoCard extends ConsumerWidget {
-  final TimelineMoment memento;
+  final TimelineMemory memento;
   final VoidCallback onTap;
   final bool isOffline;
 
@@ -245,7 +245,7 @@ class MementoCard extends ConsumerWidget {
     }
 
     final media = memento.primaryMedia!;
-    final bucket = media.isPhoto ? 'moments-photos' : 'moments-videos';
+    final bucket = media.isPhoto ? 'memories-photos' : 'memories-videos';
     
     // Get signed URL from cache or generate new one
     final signedUrl = imageCache.getSignedUrl(

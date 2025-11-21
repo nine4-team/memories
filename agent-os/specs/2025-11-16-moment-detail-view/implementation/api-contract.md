@@ -1,16 +1,18 @@
-# Moment Detail API Contract
+# Memory Detail API Contract
 
 ## Endpoint
 
-**RPC Function:** `get_moment_detail`
+**RPC Function:** `get_memory_detail`
 
 **Access:** Supabase RPC call via authenticated client
+
+**Note:** This function works for all memory types (moment, story, memento). The function name was renamed from `get_moment_detail` to reflect that it handles all memory types.
 
 ## Request Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `p_moment_id` | `UUID` | Yes | The ID of the moment to fetch |
+| `p_memory_id` | `UUID` | Yes | The ID of the memory to fetch (works for any memory type) |
 
 ## Response Schema
 
@@ -18,12 +20,11 @@ The function returns a single row with the following structure:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | `UUID` | Moment ID |
+| `id` | `UUID` | Memory ID |
 | `user_id` | `UUID` | Owner user ID |
-| `title` | `TEXT` | Moment title (never null, may be empty) |
+| `title` | `TEXT` | Memory title (never null, may be empty) |
 | `input_text` | `TEXT` | Raw user text from capture UI (nullable) |
 | `processed_text` | `TEXT` | LLM-processed cleaned description (nullable) |
-| `raw_transcript` | `TEXT` | Raw transcript text (nullable) |
 | `generated_title` | `TEXT` | Auto-generated title (nullable) |
 | `tags` | `TEXT[]` | Array of tags |
 | `memory_type` | `TEXT` | Type: 'moment', 'story', or 'memento' |
@@ -86,14 +87,14 @@ Videos are ordered by their position in the `video_urls` array.
 ### Basic Request
 
 ```sql
-SELECT * FROM get_moment_detail(p_moment_id := '<moment-uuid>');
+SELECT * FROM get_memory_detail(p_memory_id := '<memory-uuid>');
 ```
 
 ### Flutter/Dart Usage
 
 ```dart
-final response = await supabase.rpc('get_moment_detail', params: {
-  'p_moment_id': momentId,
+final response = await supabase.rpc('get_memory_detail', params: {
+  'p_memory_id': memoryId,
 }).single();
 ```
 
@@ -102,8 +103,8 @@ final response = await supabase.rpc('get_moment_detail', params: {
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
 | `Unauthorized` | 401 | User not authenticated (no valid JWT) |
-| `Not Found` | 404 | Moment not found or user doesn't have access |
-| `Forbidden` | 403 | User doesn't have permission to view this moment |
+| `Not Found` | 404 | Memory not found or user doesn't have access |
+| `Forbidden` | 403 | User doesn't have permission to view this memory |
 
 ## Share Token Behavior
 

@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/providers/supabase_provider.dart';
 import 'package:memories/providers/timeline_image_cache_provider.dart';
@@ -12,7 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Reusable card widget for displaying a Moment in the timeline
 class MomentCard extends ConsumerWidget {
-  final TimelineMoment moment;
+  final TimelineMemory moment;
   final VoidCallback onTap;
   final bool isOffline;
 
@@ -407,7 +407,7 @@ class MomentCard extends ConsumerWidget {
     }
     
     // Remote Supabase media - use signed URL
-    final bucket = media.isPhoto ? 'moments-photos' : 'moments-videos';
+    final bucket = media.isPhoto ? 'memories-photos' : 'memories-videos';
     
     // Get signed URL from cache or generate new one
     final signedUrl = imageCache.getSignedUrl(

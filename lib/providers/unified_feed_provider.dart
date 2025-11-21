@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/models/queue_change_event.dart';
 import 'package:memories/providers/supabase_provider.dart';
@@ -9,8 +9,7 @@ import 'package:memories/services/connectivity_service.dart';
 import 'package:memories/services/memory_sync_service.dart';
 import 'package:memories/services/unified_feed_repository.dart';
 import 'package:memories/providers/timeline_analytics_provider.dart';
-import 'package:memories/services/offline_queue_service.dart';
-import 'package:memories/services/offline_story_queue_service.dart';
+import 'package:memories/services/offline_memory_queue_service.dart';
 import 'package:memories/services/shared_preferences_local_memory_preview_store.dart';
 
 part 'unified_feed_provider.g.dart';
@@ -42,7 +41,7 @@ enum UnifiedFeedState {
 /// Unified feed view state
 class UnifiedFeedViewState {
   final UnifiedFeedState state;
-  final List<TimelineMoment> memories;
+  final List<TimelineMemory> memories;
   final UnifiedFeedCursor? nextCursor;
   final String? errorMessage;
   final bool hasMore;
@@ -61,7 +60,7 @@ class UnifiedFeedViewState {
 
   UnifiedFeedViewState copyWith({
     UnifiedFeedState? state,
-    List<TimelineMoment>? memories,
+    List<TimelineMemory>? memories,
     UnifiedFeedCursor? nextCursor,
     String? errorMessage,
     bool? hasMore,
@@ -84,14 +83,12 @@ class UnifiedFeedViewState {
 @riverpod
 UnifiedFeedRepository unifiedFeedRepository(UnifiedFeedRepositoryRef ref) {
   final supabase = ref.read(supabaseClientProvider);
-  final offlineQueueService = ref.read(offlineQueueServiceProvider);
-  final offlineStoryQueueService = ref.read(offlineStoryQueueServiceProvider);
+  final offlineQueueService = ref.read(offlineMemoryQueueServiceProvider);
   final localPreviewStore = ref.read(localMemoryPreviewStoreProvider);
 
   return UnifiedFeedRepository(
     supabase,
     offlineQueueService,
-    offlineStoryQueueService,
     localPreviewStore,
   );
 }
@@ -106,7 +103,6 @@ class UnifiedFeedController extends _$UnifiedFeedController {
   Set<MemoryType> _memoryTypeFilters = {};
   StreamSubscription<SyncCompleteEvent>? _syncSub;
   StreamSubscription<QueueChangeEvent>? _queueChangeSub;
-  StreamSubscription<QueueChangeEvent>? _storyQueueChangeSub;
 
   @override
   UnifiedFeedViewState build([Set<MemoryType>? memoryTypeFilters]) {
@@ -120,7 +116,6 @@ class UnifiedFeedController extends _$UnifiedFeedController {
     ref.onDispose(() {
       _syncSub?.cancel();
       _queueChangeSub?.cancel();
-      _storyQueueChangeSub?.cancel();
     });
     return const UnifiedFeedViewState(state: UnifiedFeedState.initial);
   }
@@ -137,16 +132,10 @@ class UnifiedFeedController extends _$UnifiedFeedController {
   }
 
   void _setupQueueChangeListeners() {
-    final queueService = ref.read(offlineQueueServiceProvider);
-    final storyQueueService = ref.read(offlineStoryQueueServiceProvider);
+    final queueService = ref.read(offlineMemoryQueueServiceProvider);
 
     _queueChangeSub?.cancel();
     _queueChangeSub = queueService.changeStream.listen((event) {
-      _handleQueueChange(event);
-    });
-
-    _storyQueueChangeSub?.cancel();
-    _storyQueueChangeSub = storyQueueService.changeStream.listen((event) {
       _handleQueueChange(event);
     });
   }

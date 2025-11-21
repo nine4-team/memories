@@ -313,7 +313,7 @@ class _PhotoSlideState extends ConsumerState<_PhotoSlide> {
             child: FutureBuilder<String>(
               future: imageCache.getSignedUrlForDetailView(
                 supabase,
-                'moments-photos',
+                'memories-photos',
                 widget.photo.url,
               ),
               builder: (context, snapshot) {
@@ -453,7 +453,7 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
       // Get signed URL for video
       final videoUrl = await imageCache.getSignedUrlForDetailView(
         supabase,
-        'moments-videos',
+        'memories-videos',
         widget.video.url,
       );
 
@@ -539,7 +539,7 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
                 future: widget.video.posterUrl != null
                     ? imageCache.getSignedUrlForDetailView(
                         supabase,
-                        'moments-photos',
+                        'memories-photos',
                         widget.video.posterUrl!,
                       )
                     : Future.value(null),
@@ -851,7 +851,7 @@ class _LightboxMediaSlideState extends ConsumerState<_LightboxMediaSlide> {
     try {
       final videoUrl = await imageCache.getSignedUrlForDetailView(
         supabase,
-        'moments-videos',
+        'memories-videos',
         widget.item.video!.url,
       );
 
@@ -954,7 +954,7 @@ class _LightboxPhotoSlideState extends ConsumerState<_LightboxPhotoSlide> {
           child: FutureBuilder<String>(
             future: imageCache.getSignedUrlForDetailView(
               supabase,
-              'moments-photos',
+              'memories-photos',
               widget.photo.url,
             ),
             builder: (context, snapshot) {
@@ -1021,7 +1021,7 @@ class _LightboxVideoSlide extends ConsumerWidget {
             future: video.posterUrl != null
                 ? imageCache.getSignedUrlForDetailView(
                     supabase,
-                    'moments-photos',
+                    'memories-photos',
                     video.posterUrl!,
                   )
                 : Future.value(null),

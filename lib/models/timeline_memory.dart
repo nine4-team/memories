@@ -142,7 +142,7 @@ class TimelineMemory {
     String? serverId,
     OfflineSyncStatus? offlineSyncStatus,
   }) {
-    return TimelineMoment(
+    return TimelineMemory(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       title: title ?? this.title,

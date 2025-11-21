@@ -106,15 +106,17 @@ Pagination works identically to the unified timeline:
 
 ### Endpoint
 
-**RPC Function:** `get_moment_detail` (works for Stories when `memory_type = 'story'`)
+**RPC Function:** `get_memory_detail`
 
 **Access:** Supabase RPC call via authenticated client
+
+**Note:** This function works for all memory types (moment, story, memento). Use `memory_type` field in response to determine the type.
 
 ### Request Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `p_moment_id` | `UUID` | Yes | The ID of the Story to fetch (works for any memory type) |
+| `p_memory_id` | `UUID` | Yes | The ID of the memory to fetch (works for any memory type) |
 
 ### Response Schema
 
@@ -122,12 +124,11 @@ The response includes all fields needed for Story detail view:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | `UUID` | Story ID |
+| `id` | `UUID` | Memory ID |
 | `user_id` | `UUID` | Owner user ID |
-| `title` | `TEXT` | Story title (never null, may be empty) |
+| `title` | `TEXT` | Memory title (never null, may be empty) |
 | `input_text` | `TEXT` | Raw user text from capture UI (nullable) |
 | `processed_text` | `TEXT` | LLM-processed narrative text (nullable, for stories this is the full narrative) |
-| `raw_transcript` | `TEXT` | Raw transcript text (nullable) |
 | `generated_title` | `TEXT` | Auto-generated title (nullable) |
 | `tags` | `TEXT[]` | Array of tags |
 | `memory_type` | `TEXT` | Type: `'story'` for Stories |
@@ -147,7 +148,6 @@ For Stories, the following fields are critical for the detail view:
 
 - **`processed_text`**: LLM-processed narrative text (primary content for display, preferred)
 - **`input_text`**: Raw user text from capture UI (fallback if processed_text not yet available)
-- **`raw_transcript`**: Original transcript (for reference/debugging)
 - **`generated_title`**: Auto-generated title (preferred display title)
 - **`captured_at`**: Used for friendly timestamp display
 - **`created_at`**: Used for metadata display

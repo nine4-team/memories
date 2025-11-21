@@ -146,7 +146,7 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
         // Just load the poster for thumbnail - don't initialize video player
         await imageCache.getSignedUrlForDetailView(
           supabase,
-          'moments-photos',
+          'memories-photos',
           posterUrl,
         );
       }
@@ -192,7 +192,7 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
     return FutureBuilder<String>(
       future: imageCache.getSignedUrlForDetailView(
         supabase,
-        'moments-photos',
+        'memories-photos',
         widget.item.photo!.url,
       ),
       builder: (context, snapshot) {
@@ -237,7 +237,7 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
           FutureBuilder<String>(
             future: imageCache.getSignedUrlForDetailView(
               supabase,
-              'moments-photos',
+              'memories-photos',
               widget.item.video!.posterUrl!,
             ),
             builder: (context, snapshot) {

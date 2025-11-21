@@ -14,7 +14,7 @@ class TimelineImageCacheService {
   /// Get a signed URL for a storage path, using cache if available
   /// 
   /// [supabase] is the Supabase client
-  /// [bucket] is the storage bucket name ('moments-photos' or 'moments-videos')
+  /// [bucket] is the storage bucket name ('memories-photos' or 'memories-videos')
   /// [path] is the storage path (can be a full URL or just the path)
   /// 
   /// Returns a Future that resolves to the signed URL
@@ -32,7 +32,7 @@ class TimelineImageCacheService {
   /// URLs remain valid for longer detail view sessions.
   /// 
   /// [supabase] is the Supabase client
-  /// [bucket] is the storage bucket name ('moments-photos' or 'moments-videos')
+  /// [bucket] is the storage bucket name ('memories-photos' or 'memories-videos')
   /// [path] is the storage path (can be a full URL or just the path)
   /// 
   /// Returns a Future that resolves to the signed URL

@@ -6,12 +6,12 @@ part of 'memory_sync_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$memorySyncServiceHash() => r'13724bdb2a6cd5d9c52e2172e97fd3e861f3fe1f';
+String _$memorySyncServiceHash() => r'91b4e05d63ab65fad8ad653806873092aa9a5ac2';
 
 /// Service for syncing queued memories (moments, mementos, and stories) to the server
 ///
 /// Handles automatic retry with exponential backoff for all memory types
-/// stored in the offline queues (moments/mementos and stories).
+/// stored in the unified offline memory queue.
 ///
 /// Copied from [memorySyncService].
 @ProviderFor(memorySyncService)

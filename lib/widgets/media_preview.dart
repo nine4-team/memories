@@ -164,7 +164,7 @@ class _PhotoPreview extends ConsumerWidget {
     return FutureBuilder<String>(
       future: imageCache.getSignedUrlForDetailView(
         supabase,
-        'moments-photos',
+        'memories-photos',
         photo.url,
       ),
       builder: (context, snapshot) {
@@ -273,7 +273,7 @@ class _VideoPreviewState extends ConsumerState<_VideoPreview> {
     try {
       final videoUrl = await imageCache.getSignedUrlForDetailView(
         supabase,
-        'moments-videos',
+        'memories-videos',
         widget.video.url,
       );
 
@@ -328,7 +328,7 @@ class _VideoPreviewState extends ConsumerState<_VideoPreview> {
               final imageCache = ref.read(timelineImageCacheServiceProvider);
               return imageCache.getSignedUrlForDetailView(
                 supabase,
-                'moments-photos',
+                'memories-photos',
                 widget.video.posterUrl!,
               );
             }(),
@@ -618,7 +618,7 @@ class _LightboxPhotoSlideState extends ConsumerState<_LightboxPhotoSlide> {
             return FutureBuilder<String>(
               future: imageCache.getSignedUrlForDetailView(
                 supabase,
-                'moments-photos',
+                'memories-photos',
                 widget.photo.url,
               ),
               builder: (context, snapshot) {
@@ -720,7 +720,7 @@ class _LightboxVideoSlideState extends ConsumerState<_LightboxVideoSlide> {
     try {
       final videoUrl = await imageCache.getSignedUrlForDetailView(
         supabase,
-        'moments-videos',
+        'memories-videos',
         widget.video.url,
       );
 
@@ -774,7 +774,7 @@ class _LightboxVideoSlideState extends ConsumerState<_LightboxVideoSlide> {
               final imageCache = ref.read(timelineImageCacheServiceProvider);
               return imageCache.getSignedUrlForDetailView(
                 supabase,
-                'moments-photos',
+                'memories-photos',
                 widget.video.posterUrl!,
               );
             }(),

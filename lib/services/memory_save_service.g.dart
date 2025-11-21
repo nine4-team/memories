@@ -6,7 +6,7 @@ part of 'memory_save_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$memorySaveServiceHash() => r'774c89904fb4f405fa451a326cbc40e7a1f088b3';
+String _$memorySaveServiceHash() => r'460bc1f5c3c5b930cf3b256ed3750b8d3319c2fd';
 
 /// Service for saving memories to Supabase
 ///

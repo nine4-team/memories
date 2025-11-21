@@ -5,15 +5,13 @@ import 'package:flutter_dictation/flutter_dictation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/models/capture_state.dart';
-import 'package:memories/models/queued_moment.dart';
-import 'package:memories/models/queued_story.dart';
+import 'package:memories/models/queued_memory.dart';
 import 'package:memories/providers/capture_state_provider.dart';
 import 'package:memories/providers/media_picker_provider.dart';
 import 'package:memories/providers/queue_status_provider.dart';
 import 'package:memories/providers/memory_detail_provider.dart';
 import 'package:memories/services/memory_save_service.dart';
-import 'package:memories/services/offline_queue_service.dart';
-import 'package:memories/services/offline_story_queue_service.dart';
+import 'package:memories/services/offline_memory_queue_service.dart';
 import 'package:memories/services/media_picker_service.dart';
 import 'package:memories/screens/memory/memory_detail_screen.dart';
 import 'package:memories/utils/platform_utils.dart';
@@ -261,70 +259,65 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
       notifier.setCapturedAt(capturedAt);
       final finalState = ref.read(captureStateNotifierProvider);
 
-      // Step 3: Handle Story vs Moment/Memento saving
-      if (finalState.memoryType == MemoryType.story) {
-        // For Stories, queue for offline sync
-        // MemorySyncService will automatically sync when connectivity is restored
+      // Step 3: Queue for offline sync if needed
+      // MemorySyncService will automatically sync when connectivity is restored
+      // This queues whenever uploads cannot proceed (offline or when upload service unavailable)
+      try {
+        final queueService = ref.read(offlineMemoryQueueServiceProvider);
+        final localId = OfflineMemoryQueueService.generateLocalId();
 
-        try {
-          // Queue story for sync (MemorySyncService handles automatic syncing)
-          // This queues whenever uploads cannot proceed (offline or when upload service unavailable)
-          final storyQueueService = ref.read(offlineStoryQueueServiceProvider);
-          final localId = OfflineStoryQueueService.generateLocalId();
+        // Check for duplicate submissions: if a memory with identical content is already queued,
+        // update it instead of creating a duplicate. The deterministic local ID prevents
+        // duplicate submissions during the same save operation.
+        final queuedMemory = QueuedMemory.fromCaptureState(
+          localId: localId,
+          state: finalState,
+          audioPath: finalState.audioPath,
+          audioDuration: finalState.audioDuration,
+          capturedAt: capturedAt,
+        );
+        await queueService.enqueue(queuedMemory);
 
-          // Check for duplicate submissions: if a story with identical content is already queued,
-          // update it instead of creating a duplicate. The deterministic local ID prevents
-          // duplicate submissions during the same save operation.
-          final queuedStory = QueuedStory.fromCaptureState(
-            localId: localId,
-            state: finalState,
-            audioPath: finalState.audioPath,
-            audioDuration: finalState.audioDuration,
-            capturedAt: capturedAt,
-          );
-          await storyQueueService.enqueue(queuedStory);
+        // Invalidate queue status to refresh UI (shows queued/syncing badges)
+        ref.invalidate(queueStatusProvider);
 
-          // Invalidate queue status to refresh UI (shows queued/syncing badges)
-          ref.invalidate(queueStatusProvider);
+        if (mounted) {
+          // Show success checkmark briefly before navigation
+          setState(() {
+            _isSaving = false;
+            _showSuccessCheckmark = true;
+          });
+
+          // Wait for checkmark animation
+          await Future.delayed(const Duration(milliseconds: 600));
 
           if (mounted) {
-            // Show success checkmark briefly before navigation
-            setState(() {
-              _isSaving = false;
-              _showSuccessCheckmark = true;
-            });
-
-            // Wait for checkmark animation
-            await Future.delayed(const Duration(milliseconds: 600));
-
-            if (mounted) {
-              await notifier.clear(keepAudioIfQueued: true);
-              // Only pop if there's a route to pop (i.e., if this screen was pushed)
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              }
+            await notifier.clear(keepAudioIfQueued: true);
+            // Only pop if there's a route to pop (i.e., if this screen was pushed)
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
             }
-            return;
           }
-        } catch (e) {
-          // Handle queue errors gracefully
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to queue story: ${e.toString()}'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
-                action: SnackBarAction(
-                  label: 'Retry',
-                  textColor: Colors.white,
-                  onPressed: () => _handleSave(),
-                ),
-              ),
-            );
-          }
-          // Re-throw to be caught by outer catch block
-          rethrow;
+          return;
         }
+      } catch (e) {
+        // Handle queue errors gracefully
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to queue memory: ${e.toString()}'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+              action: SnackBarAction(
+                label: 'Retry',
+                textColor: Colors.white,
+                onPressed: () => _handleSave(),
+              ),
+            ),
+          );
+        }
+        // Re-throw to be caught by outer catch block
+        rethrow;
       }
 
       // Step 3: Check if editing offline queued memory
@@ -360,7 +353,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
 
       // Step 3: Save or update memory with progress updates (or queue if offline)
       final saveService = ref.read(memorySaveServiceProvider);
-      final queueService = ref.read(offlineQueueServiceProvider);
       MemorySaveResult? result;
       final isEditing = finalState.isEditing;
       final editingMemoryId = finalState.editingMemoryId;
@@ -374,20 +366,23 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
           );
         } else {
           // Create new memory
-          result = await saveService.saveMoment(
+          result = await saveService.saveMemory(
             state: finalState,
           );
         }
       } on OfflineException {
         // Queue for offline sync (only for new memories, not edits)
         if (!isEditing) {
-          final localId = OfflineQueueService.generateLocalId();
-          final queuedMoment = QueuedMoment.fromCaptureState(
+          final queueService = ref.read(offlineMemoryQueueServiceProvider);
+          final localId = OfflineMemoryQueueService.generateLocalId();
+          final queuedMemory = QueuedMemory.fromCaptureState(
             localId: localId,
             state: finalState,
+            audioPath: finalState.audioPath,
+            audioDuration: finalState.audioDuration,
             capturedAt: capturedAt,
           );
-          await queueService.enqueue(queuedMoment);
+          await queueService.enqueue(queuedMemory);
 
           // Invalidate queue status to refresh UI
           ref.invalidate(queueStatusProvider);

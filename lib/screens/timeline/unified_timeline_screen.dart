@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/providers/unified_feed_provider.dart';
 import 'package:memories/providers/unified_feed_tab_provider.dart';
@@ -210,7 +210,7 @@ class _UnifiedTimelineScreenState extends ConsumerState<UnifiedTimelineScreen> {
     });
   }
 
-  void _navigateToDetail(TimelineMoment memory, int position) {
+  void _navigateToDetail(TimelineMemory memory, int position) {
     final memoryType = _getMemoryType(memory.memoryType);
     ref.read(timelineAnalyticsServiceProvider).trackUnifiedFeedCardTap(
           memory.id,
@@ -703,10 +703,10 @@ class _UnifiedTimelineScreenState extends ConsumerState<UnifiedTimelineScreen> {
 
 
   /// Group memories by Year → Month (no season grouping)
-  Map<int, Map<int, List<TimelineMoment>>> _groupMemoriesByYearAndMonth(
-    List<TimelineMoment> memories,
+  Map<int, Map<int, List<TimelineMemory>>> _groupMemoriesByYearAndMonth(
+    List<TimelineMemory> memories,
   ) {
-    final grouped = <int, Map<int, List<TimelineMoment>>>{};
+    final grouped = <int, Map<int, List<TimelineMemory>>>{};
 
     for (final memory in memories) {
       grouped.putIfAbsent(memory.year, () => {});
@@ -719,7 +719,7 @@ class _UnifiedTimelineScreenState extends ConsumerState<UnifiedTimelineScreen> {
     // Sort months within each year (descending - most recent first)
     for (final yearMap in grouped.values) {
       final sortedMonths = yearMap.keys.toList()..sort((a, b) => b.compareTo(a));
-      final sortedMap = <int, List<TimelineMoment>>{};
+      final sortedMap = <int, List<TimelineMemory>>{};
       for (final month in sortedMonths) {
         sortedMap[month] = yearMap[month]!;
       }

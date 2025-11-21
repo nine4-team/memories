@@ -2,13 +2,13 @@
 
 ## Overview
 
-This document audits the `get_moment_detail` RPC function to ensure it returns all fields required for the Story detail view, including narrative text, audio metadata, related memories, and timestamps.
+This document audits the `get_memory_detail` RPC function to ensure it returns all fields required for the Story detail view, including narrative text, audio metadata, related memories, and timestamps.
 
-## Current Endpoint: `get_moment_detail`
+## Current Endpoint: `get_memory_detail`
 
-**Function:** `get_moment_detail(p_moment_id UUID)`
+**Function:** `get_memory_detail(p_memory_id UUID)`
 
-**Works for:** All memory types (moment, story, memento) via `capture_type` field
+**Works for:** All memory types (moment, story, memento) via `memory_type` field
 
 ## Required Fields for Story Detail View
 
@@ -16,14 +16,14 @@ This document audits the `get_moment_detail` RPC function to ensure it returns a
 
 | Field | Type | Status | Notes |
 |-------|------|--------|-------|
-| `id` | UUID | ✅ Available | Story ID |
+| `id` | UUID | ✅ Available | Memory ID |
 | `user_id` | UUID | ✅ Available | Owner user ID |
-| `title` | TEXT | ✅ Available | Story title (may be empty) |
-| `text_description` | TEXT | ✅ Available | **Processed narrative text** (primary content) |
-| `raw_transcript` | TEXT | ✅ Available | **Original transcript** (fallback if narrative not processed) |
+| `title` | TEXT | ✅ Available | Memory title (may be empty) |
+| `processed_text` | TEXT | ✅ Available | **Processed narrative text** (primary content for stories) |
+| `input_text` | TEXT | ✅ Available | **Raw user text** (fallback if processed_text not yet available) |
 | `generated_title` | TEXT | ✅ Available | **Auto-generated title** (preferred display title) |
 | `tags` | TEXT[] | ✅ Available | Array of tags |
-| `capture_type` | TEXT | ✅ Available | Always `'story'` for Stories |
+| `memory_type` | TEXT | ✅ Available | Always `'story'` for Stories |
 | `captured_at` | TIMESTAMPTZ | ✅ Available | **Capture timestamp** (for friendly timestamp) |
 | `created_at` | TIMESTAMPTZ | ✅ Available | **Creation timestamp** (for metadata) |
 | `updated_at` | TIMESTAMPTZ | ✅ Available | **Update timestamp** (for cache busting) |
@@ -114,7 +114,7 @@ Until audio fields are available:
 When junction tables are created:
 - `story_moments` table will link Stories to Moments
 - `moment_mementos` table will link Stories to Mementos
-- `get_moment_detail` function will query these tables
+- `get_memory_detail` function will query these tables
 
 ## Timestamps
 
@@ -137,7 +137,7 @@ The `updated_at` field enables cache invalidation:
 
 ### ✅ Ready for Implementation
 
-The `get_moment_detail` endpoint provides all fields needed for:
+The `get_memory_detail` endpoint provides all fields needed for:
 - Title display (with fallbacks)
 - Narrative text display (with fallbacks)
 - Metadata rows (timestamps, related memories)
@@ -159,9 +159,9 @@ The following fields will need to be added for full Story detail functionality:
 
 ## Testing Checklist
 
-- [ ] Verify `get_moment_detail` returns all listed fields for Stories
-- [ ] Verify `text_description` contains processed narrative (when available)
-- [ ] Verify `raw_transcript` contains original transcript (when available)
+- [ ] Verify `get_memory_detail` returns all listed fields for Stories
+- [ ] Verify `processed_text` contains processed narrative (when available)
+- [ ] Verify `input_text` contains raw user text (when available)
 - [ ] Verify `generated_title` is preferred over `title` for display
 - [ ] Verify `captured_at` is used for friendly timestamp
 - [ ] Verify `updated_at` enables cache invalidation

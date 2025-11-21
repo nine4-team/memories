@@ -1,24 +1,33 @@
 import 'package:memories/models/capture_state.dart';
 import 'package:memories/models/memory_type.dart';
 
-/// Status of a queued moment
-enum QueuedMomentStatus {
+/// Status of a queued memory
+enum QueuedMemoryStatus {
   queued,
   syncing,
   failed,
   completed,
 }
 
-/// Model representing a moment queued for offline sync
-class QueuedMoment {
+/// Model representing a memory queued for offline sync
+/// 
+/// Unified model for moments, mementos, and stories.
+/// Stories include optional audio fields (audioPath, audioDuration).
+class QueuedMemory {
   /// Deterministic local ID (UUID)
   final String localId;
 
-  /// Memory type
+  /// Memory type ('moment', 'memento', or 'story')
   final String memoryType;
 
   /// Input text from dictation or manual entry (canonical field)
   final String? inputText;
+
+  /// Audio file path (local path to audio recording) - for stories only
+  final String? audioPath;
+
+  /// Audio duration in seconds (optional metadata) - for stories only
+  final double? audioDuration;
 
   /// Photo file paths (local)
   final List<String> photoPaths;
@@ -53,16 +62,26 @@ class QueuedMoment {
   /// Last retry timestamp
   final DateTime? lastRetryAt;
 
-  /// Server moment ID (set after successful sync)
-  final String? serverMomentId;
+  /// Server memory ID (set after successful sync)
+  /// Unified field name for all memory types (replaces serverMomentId/serverStoryId)
+  final String? serverMemoryId;
 
   /// Error message if sync failed
   final String? errorMessage;
 
-  QueuedMoment({
+  /// Version of the serialization format
+  /// Increment this when making breaking changes to the model structure
+  static const int currentVersion = 1;
+
+  /// Model version for this instance
+  final int version;
+
+  QueuedMemory({
     required this.localId,
     required this.memoryType,
     this.inputText,
+    this.audioPath,
+    this.audioDuration,
     this.photoPaths = const [],
     this.videoPaths = const [],
     this.tags = const [],
@@ -74,20 +93,27 @@ class QueuedMoment {
     this.retryCount = 0,
     required this.createdAt,
     this.lastRetryAt,
-    this.serverMomentId,
+    this.serverMemoryId,
     this.errorMessage,
+    this.version = currentVersion,
   });
 
   /// Create from CaptureState
-  factory QueuedMoment.fromCaptureState({
+  /// 
+  /// Handles optional audio fields when memoryType is 'story'
+  factory QueuedMemory.fromCaptureState({
     required String localId,
     required CaptureState state,
+    String? audioPath,
+    double? audioDuration,
     DateTime? capturedAt,
   }) {
-    return QueuedMoment(
+    return QueuedMemory(
       localId: localId,
       memoryType: state.memoryType.apiValue,
       inputText: state.inputText,
+      audioPath: audioPath,
+      audioDuration: audioDuration,
       photoPaths: List.from(state.photoPaths),
       videoPaths: List.from(state.videoPaths),
       tags: List.from(state.tags),
@@ -100,6 +126,8 @@ class QueuedMoment {
   }
 
   /// Convert to CaptureState
+  /// 
+  /// Includes audioPath and audioDuration for stories
   CaptureState toCaptureState() {
     return CaptureState(
       memoryType: _parseMemoryType(memoryType),
@@ -111,6 +139,8 @@ class QueuedMoment {
       longitude: longitude,
       locationStatus: locationStatus,
       capturedAt: capturedAt,
+      audioPath: audioPath,
+      audioDuration: audioDuration,
     );
   }
 
@@ -132,13 +162,14 @@ class QueuedMoment {
   ///
   /// Updates content fields from capture state while preserving sync metadata.
   /// Used when editing a queued memory offline.
-  QueuedMoment copyWithFromCaptureState({
+  /// Preserves audioPath and audioDuration for stories (stories don't allow re-recording during edit).
+  QueuedMemory copyWithFromCaptureState({
     required CaptureState state,
     String? status,
     int? retryCount,
     DateTime? createdAt,
     DateTime? lastRetryAt,
-    String? serverMomentId,
+    String? serverMemoryId,
     String? errorMessage,
   }) {
     // Combine existing photo/video paths with new ones from capture state
@@ -156,10 +187,16 @@ class QueuedMoment {
     final allPhotoPaths = [...existingPhotoPaths, ...state.photoPaths];
     final allVideoPaths = [...existingVideoPaths, ...state.videoPaths];
 
-    return QueuedMoment(
+    // Preserve audio fields for stories
+    final preservedAudioPath = memoryType == 'story' ? audioPath : null;
+    final preservedAudioDuration = memoryType == 'story' ? audioDuration : null;
+
+    return QueuedMemory(
       localId: localId,
       memoryType: state.memoryType.apiValue,
       inputText: state.inputText,
+      audioPath: preservedAudioPath,
+      audioDuration: preservedAudioDuration,
       photoPaths: allPhotoPaths,
       videoPaths: allVideoPaths,
       tags: List.from(state.tags),
@@ -171,16 +208,19 @@ class QueuedMoment {
       retryCount: retryCount ?? this.retryCount,
       createdAt: createdAt ?? this.createdAt,
       lastRetryAt: lastRetryAt ?? this.lastRetryAt,
-      serverMomentId: serverMomentId ?? this.serverMomentId,
+      serverMemoryId: serverMemoryId ?? this.serverMemoryId,
       errorMessage: errorMessage ?? this.errorMessage,
+      version: version,
     );
   }
 
   /// Create copy with updated fields
-  QueuedMoment copyWith({
+  QueuedMemory copyWith({
     String? localId,
     String? memoryType,
     String? inputText,
+    String? audioPath,
+    double? audioDuration,
     List<String>? photoPaths,
     List<String>? videoPaths,
     List<String>? tags,
@@ -192,13 +232,16 @@ class QueuedMoment {
     int? retryCount,
     DateTime? createdAt,
     DateTime? lastRetryAt,
-    String? serverMomentId,
+    String? serverMemoryId,
     String? errorMessage,
+    int? version,
   }) {
-    return QueuedMoment(
+    return QueuedMemory(
       localId: localId ?? this.localId,
       memoryType: memoryType ?? this.memoryType,
       inputText: inputText ?? this.inputText,
+      audioPath: audioPath ?? this.audioPath,
+      audioDuration: audioDuration ?? this.audioDuration,
       photoPaths: photoPaths ?? this.photoPaths,
       videoPaths: videoPaths ?? this.videoPaths,
       tags: tags ?? this.tags,
@@ -210,32 +253,36 @@ class QueuedMoment {
       retryCount: retryCount ?? this.retryCount,
       createdAt: createdAt ?? this.createdAt,
       lastRetryAt: lastRetryAt ?? this.lastRetryAt,
-      serverMomentId: serverMomentId ?? this.serverMomentId,
+      serverMemoryId: serverMemoryId ?? this.serverMemoryId,
       errorMessage: errorMessage ?? this.errorMessage,
+      version: version ?? this.version,
     );
   }
 
-  QueuedMomentStatus get statusEnum {
+  QueuedMemoryStatus get statusEnum {
     switch (status) {
       case 'queued':
-        return QueuedMomentStatus.queued;
+        return QueuedMemoryStatus.queued;
       case 'syncing':
-        return QueuedMomentStatus.syncing;
+        return QueuedMemoryStatus.syncing;
       case 'failed':
-        return QueuedMomentStatus.failed;
+        return QueuedMemoryStatus.failed;
       case 'completed':
-        return QueuedMomentStatus.completed;
+        return QueuedMemoryStatus.completed;
       default:
-        return QueuedMomentStatus.queued;
+        return QueuedMemoryStatus.queued;
     }
   }
 
   /// Convert to JSON for storage
   Map<String, dynamic> toJson() {
     return {
+      'version': version,
       'localId': localId,
       'memoryType': memoryType,
       'inputText': inputText,
+      'audioPath': audioPath,
+      'audioDuration': audioDuration,
       'photoPaths': photoPaths,
       'videoPaths': videoPaths,
       'tags': tags,
@@ -247,17 +294,22 @@ class QueuedMoment {
       'retryCount': retryCount,
       'createdAt': createdAt.toIso8601String(),
       'lastRetryAt': lastRetryAt?.toIso8601String(),
-      'serverMomentId': serverMomentId,
+      'serverMemoryId': serverMemoryId,
       'errorMessage': errorMessage,
     };
   }
 
   /// Create from JSON
-  factory QueuedMoment.fromJson(Map<String, dynamic> json) {
-    return QueuedMoment(
+  factory QueuedMemory.fromJson(Map<String, dynamic> json) {
+    final version = json['version'] as int? ?? 1;
+    
+    return QueuedMemory(
+      version: version,
       localId: json['localId'] as String,
       memoryType: json['memoryType'] as String,
       inputText: json['inputText'] as String?,
+      audioPath: json['audioPath'] as String?,
+      audioDuration: json['audioDuration'] as double?,
       photoPaths: List<String>.from(json['photoPaths'] as List? ?? []),
       videoPaths: List<String>.from(json['videoPaths'] as List? ?? []),
       tags: List<String>.from(json['tags'] as List? ?? []),
@@ -273,7 +325,7 @@ class QueuedMoment {
       lastRetryAt: json['lastRetryAt'] != null
           ? DateTime.parse(json['lastRetryAt'] as String)
           : null,
-      serverMomentId: json['serverMomentId'] as String?,
+      serverMemoryId: json['serverMemoryId'] as String?,
       errorMessage: json['errorMessage'] as String?,
     );
   }

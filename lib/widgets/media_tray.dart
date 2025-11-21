@@ -162,7 +162,7 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
         final imageCache = ref.read(timelineImageCacheServiceProvider);
         final signedUrl = await imageCache.getSignedUrlForDetailView(
           supabase,
-          'moments-videos', // Videos are stored in moments-videos bucket
+          'memories-videos', // Videos are stored in memories-videos bucket
           widget.url!,
         );
         _videoController = VideoPlayerController.networkUrl(Uri.parse(signedUrl));
@@ -264,7 +264,7 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
         return FutureBuilder<String>(
           future: imageCache.getSignedUrlForDetailView(
             supabase,
-            'moments-photos',
+            'memories-photos',
             widget.url!,
           ),
           builder: (context, snapshot) {

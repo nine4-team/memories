@@ -88,7 +88,7 @@ void main() {
             .thenAnswer((_) async => []);
         when(() => mockQueueService.update(any()))
             .thenAnswer((_) async => {});
-        when(() => mockSaveService.saveMoment(state: any(named: 'state')))
+        when(() => mockSaveService.saveMemory(state: any(named: 'state')))
             .thenAnswer((_) async => saveResult);
         when(() => mockQueueService.remove(any())).thenAnswer((_) async => {});
 
@@ -135,7 +135,7 @@ void main() {
             .thenAnswer((_) async => []);
         when(() => mockStoryQueueService.update(any()))
             .thenAnswer((_) async => {});
-        when(() => mockSaveService.saveMoment(state: any(named: 'state')))
+        when(() => mockSaveService.saveMemory(state: any(named: 'state')))
             .thenAnswer((_) async => saveResult);
         when(() => mockStoryQueueService.remove(any()))
             .thenAnswer((_) async => {});
@@ -183,7 +183,7 @@ void main() {
             .thenAnswer((_) async => []);
         when(() => mockQueueService.update(any()))
             .thenAnswer((_) async => {});
-        when(() => mockSaveService.saveMoment(state: any(named: 'state')))
+        when(() => mockSaveService.saveMemory(state: any(named: 'state')))
             .thenAnswer((_) async => saveResult);
         when(() => mockQueueService.remove(any())).thenAnswer((_) async => {});
 
@@ -221,7 +221,7 @@ void main() {
             .thenAnswer((_) async => []);
         when(() => mockQueueService.update(any()))
             .thenAnswer((_) async => {});
-        when(() => mockSaveService.saveMoment(state: any(named: 'state')))
+        when(() => mockSaveService.saveMemory(state: any(named: 'state')))
             .thenThrow(Exception('Sync failed'));
 
         final events = <SyncCompleteEvent>[];

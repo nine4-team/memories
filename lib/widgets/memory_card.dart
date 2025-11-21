@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/providers/unified_feed_provider.dart';
 import 'package:memories/providers/unified_feed_tab_provider.dart';
@@ -14,7 +14,7 @@ import 'package:memories/widgets/memento_card.dart';
 /// the memory type (Story/Moment/Memento). Delegates actual rendering to
 /// the appropriate card component (StoryCard, MomentCard, MementoCard).
 class MemoryCard extends ConsumerWidget {
-  final TimelineMoment memory;
+  final TimelineMemory memory;
   final VoidCallback onTap;
 
   const MemoryCard({

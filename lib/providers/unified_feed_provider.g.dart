@@ -7,7 +7,7 @@ part of 'unified_feed_provider.dart';
 // **************************************************************************
 
 String _$unifiedFeedRepositoryHash() =>
-    r'db33a9aa72396b51e6d0656f1d051a483e9b87eb';
+    r'f28318bbc529742a27d3ca9617995aee22160806';
 
 /// Provider for unified feed repository
 ///
@@ -29,7 +29,7 @@ final unifiedFeedRepositoryProvider =
 typedef UnifiedFeedRepositoryRef
     = AutoDisposeProviderRef<UnifiedFeedRepository>;
 String _$unifiedFeedControllerHash() =>
-    r'668e2ca768e1ef60529fdfdff5bd8204a66543a3';
+    r'31e51a1f412c457c8307766863356caa2ec520ee';
 
 /// Copied from Dart SDK
 class _SystemHash {

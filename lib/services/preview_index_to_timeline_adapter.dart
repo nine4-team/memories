@@ -1,8 +1,8 @@
 import 'package:memories/models/local_memory_preview.dart';
 import 'package:memories/models/memory_type.dart';
-import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/timeline_memory.dart';
 
-/// Adapter service that converts LocalMemoryPreview rows into TimelineMoment
+/// Adapter service that converts LocalMemoryPreview rows into TimelineMemory
 /// entries suitable for rendering in the timeline when the app is offline.
 ///
 /// Key responsibilities:
@@ -10,15 +10,15 @@ import 'package:memories/models/timeline_moment.dart';
 /// - Ensure they appear in the correct order alongside queued offline memories
 /// - Make it clear to the UI that full detail is not available offline in Phase 1
 class PreviewIndexToTimelineAdapter {
-  /// Convert a LocalMemoryPreview to a TimelineMoment
-  static TimelineMoment fromPreview(LocalMemoryPreview preview) {
+  /// Convert a LocalMemoryPreview to a TimelineMemory
+  static TimelineMemory fromPreview(LocalMemoryPreview preview) {
     // Extract date components from capturedAt
     final year = preview.capturedAt.year;
     final season = _getSeason(preview.capturedAt.month);
     final month = preview.capturedAt.month;
     final day = preview.capturedAt.day;
 
-    return TimelineMoment(
+    return TimelineMemory(
       id: preview.serverId,
       userId: '', // Not available in preview
       title: preview.titleOrFirstLine,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/models/memory_type.dart';
 
 /// Reusable card widget for displaying a Story in the timeline
@@ -10,7 +10,7 @@ import 'package:memories/models/memory_type.dart';
 /// Uses the same card container styles as MomentCard and MementoCard for
 /// visual consistency.
 class StoryCard extends ConsumerWidget {
-  final TimelineMoment story;
+  final TimelineMemory story;
   final VoidCallback onTap;
   final bool isOffline;
 

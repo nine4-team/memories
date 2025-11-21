@@ -12,7 +12,7 @@ const String _previewIndexKey = 'local_memory_preview_index';
 /// SharedPreferences-based implementation of LocalMemoryPreviewStore
 /// 
 /// Stores preview entries in SharedPreferences as JSON, following the same
-/// pattern as OfflineQueueService and OfflineStoryQueueService.
+/// pattern as OfflineMemoryQueueService.
 @riverpod
 SharedPreferencesLocalMemoryPreviewStore localMemoryPreviewStore(
     LocalMemoryPreviewStoreRef ref) {

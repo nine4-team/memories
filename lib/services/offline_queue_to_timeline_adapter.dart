@@ -1,10 +1,9 @@
-import 'package:memories/models/queued_moment.dart';
-import 'package:memories/models/queued_story.dart';
-import 'package:memories/models/timeline_moment.dart';
+import 'package:memories/models/queued_memory.dart';
+import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/models/memory_detail.dart';
 
-/// Adapter service that converts queued offline memories (QueuedMoment/QueuedStory)
-/// into TimelineMoment instances for the unified feed.
+/// Adapter service that converts queued offline memories (QueuedMemory)
+/// into TimelineMemory instances for the unified feed.
 ///
 /// Key responsibilities:
 /// - Mark entries as offline queued and locally detailed
@@ -12,66 +11,11 @@ import 'package:memories/models/memory_detail.dart';
 /// - Populate basic card fields (title/snippet, capturedAt, type)
 /// - Avoid full-media caching logic: we only surface whatever local paths exist
 class OfflineQueueToTimelineAdapter {
-  /// Convert a QueuedMoment to a TimelineMoment
-  static TimelineMoment fromQueuedMoment(QueuedMoment queued) {
-    // Map queue status to OfflineSyncStatus
-    final offlineSyncStatus = _mapStatusToOfflineSyncStatus(queued.status);
-
-    // Generate title/snippet from inputText
-    final title = _generateTitleFromInputText(queued.inputText, queued.memoryType);
-    final snippet = _generateSnippetFromInputText(queued.inputText);
-
-    // Extract date components from capturedAt
-    final capturedAt = queued.capturedAt ?? queued.createdAt;
-    final year = capturedAt.year;
-    final season = _getSeason(capturedAt.month);
-    final month = capturedAt.month;
-    final day = capturedAt.day;
-
-    // Determine primary media if available
-    PrimaryMedia? primaryMedia;
-    if (queued.photoPaths.isNotEmpty) {
-      primaryMedia = PrimaryMedia(
-        type: 'photo',
-        url: queued.photoPaths.first, // Local file path
-        index: 0,
-      );
-    } else if (queued.videoPaths.isNotEmpty) {
-      primaryMedia = PrimaryMedia(
-        type: 'video',
-        url: queued.videoPaths.first, // Local file path
-        index: 0,
-      );
-    }
-
-    return TimelineMoment(
-      id: queued.localId, // Use localId as primary id
-      userId: '', // Not available for queued items
-      title: title,
-      inputText: queued.inputText,
-      processedText: null, // Not available for queued items (LLM hasn't run)
-      generatedTitle: null, // Not available for queued items
-      tags: List.from(queued.tags),
-      memoryType: queued.memoryType,
-      capturedAt: capturedAt,
-      createdAt: queued.createdAt,
-      year: year,
-      season: season,
-      month: month,
-      day: day,
-      primaryMedia: primaryMedia,
-      snippetText: snippet,
-      isOfflineQueued: true,
-      isPreviewOnly: false,
-      isDetailCachedLocally: true, // Queue has full detail
-      localId: queued.localId,
-      serverId: queued.serverMomentId, // May be null if not yet synced
-      offlineSyncStatus: offlineSyncStatus,
-    );
-  }
-
-  /// Convert a QueuedStory to a TimelineMoment
-  static TimelineMoment fromQueuedStory(QueuedStory queued) {
+  /// Convert a QueuedMemory to a TimelineMemory
+  /// 
+  /// Unified method that handles all memory types (moments, mementos, stories).
+  /// For stories, considers audioPath as potential primary media.
+  static TimelineMemory fromQueuedMemory(QueuedMemory queued) {
     // Map queue status to OfflineSyncStatus
     final offlineSyncStatus = _mapStatusToOfflineSyncStatus(queued.status);
 
@@ -102,7 +46,7 @@ class OfflineQueueToTimelineAdapter {
         index: 0,
         source: MediaSource.localFile,
       );
-    } else if (queued.audioPath != null) {
+    } else if (queued.memoryType == 'story' && queued.audioPath != null) {
       // For stories, audio can be considered primary media
       primaryMedia = PrimaryMedia(
         type: 'video', // Use video type for audio (or create audio type if needed)
@@ -112,7 +56,7 @@ class OfflineQueueToTimelineAdapter {
       );
     }
 
-    return TimelineMoment(
+    return TimelineMemory(
       id: queued.localId, // Use localId as primary id
       userId: '', // Not available for queued items
       title: title,
@@ -133,7 +77,7 @@ class OfflineQueueToTimelineAdapter {
       isPreviewOnly: false,
       isDetailCachedLocally: true, // Queue has full detail
       localId: queued.localId,
-      serverId: queued.serverStoryId, // May be null if not yet synced
+      serverId: queued.serverMemoryId, // May be null if not yet synced
       offlineSyncStatus: offlineSyncStatus,
     );
   }
