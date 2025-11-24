@@ -1301,7 +1301,7 @@ class _SwipeableInputContainer extends ConsumerStatefulWidget {
   final Duration elapsedDuration;
   final String? errorMessage;
   final TextEditingController descriptionController;
-  final ValueChanged<InputMode> onInputModeChanged;
+  final Future<void> Function(InputMode) onInputModeChanged;
   final VoidCallback onStartDictation;
   final VoidCallback onStopDictation;
   final VoidCallback onCancelDictation;
@@ -1449,12 +1449,12 @@ class _SwipeableInputContainerState
     super.dispose();
   }
 
-  void _onPageChanged(int page) {
+  Future<void> _onPageChanged(int page) async {
     final newMode = page == 0 ? InputMode.dictation : InputMode.type;
     if (newMode != widget.inputMode) {
       // Reset cached height when page changes to allow recalculation
       _cachedHeight = null;
-      widget.onInputModeChanged(newMode);
+      await widget.onInputModeChanged(newMode);
 
       // When switching to dictation mode, scroll to the end of the text
       if (newMode == InputMode.dictation && widget.transcript.isNotEmpty) {
