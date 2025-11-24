@@ -84,6 +84,13 @@ class OfflineMemoryDetailNotifier extends _$OfflineMemoryDetailNotifier {
     final title =
         _generateTitleFromInputText(queued.inputText, queued.memoryType);
 
+    // For stories, convert local audio path to file:// URL format
+    String? audioPath;
+    if (queued.memoryType == 'story' && queued.audioPath != null) {
+      final path = queued.audioPath!.replaceFirst('file://', '');
+      audioPath = path.startsWith('/') ? 'file://$path' : 'file:///$path';
+    }
+
     return MemoryDetail(
       id: queued.localId,
       userId: '', // Not available for queued items until sync
@@ -103,6 +110,8 @@ class OfflineMemoryDetailNotifier extends _$OfflineMemoryDetailNotifier {
       videos: videos,
       relatedStories: [], // Not available for queued items
       relatedMementos: [], // Not available for queued items
+      audioPath: audioPath,
+      audioDuration: queued.audioDuration,
     );
   }
 

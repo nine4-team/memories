@@ -291,7 +291,6 @@ class MemorySaveService {
         await _supabase.from('story_fields').insert({
           'memory_id': memoryId,
           'audio_path': audioPath,
-          'retry_count': 0,
         });
       }
 

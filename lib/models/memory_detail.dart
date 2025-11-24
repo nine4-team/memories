@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 enum MediaSource {
   /// Media stored in Supabase Storage
   supabaseStorage,
-  
+
   /// Media stored locally as a file
   localFile,
 }
@@ -30,6 +30,12 @@ class MemoryDetail {
   final List<String> relatedStories;
   final List<String> relatedMementos;
 
+  /// Audio storage path (Supabase Storage path) - for stories only
+  final String? audioPath;
+
+  /// Audio duration in seconds - nullable until stored in database
+  final double? audioDuration;
+
   MemoryDetail({
     required this.id,
     required this.userId,
@@ -48,6 +54,8 @@ class MemoryDetail {
     required this.videos,
     required this.relatedStories,
     required this.relatedMementos,
+    this.audioPath,
+    this.audioDuration,
   });
 
   /// Display title - prefers generated title, falls back to title, then "Untitled Story", "Untitled Memento", or "Untitled Moment"
@@ -86,12 +94,14 @@ class MemoryDetail {
             ?.map((e) => PhotoMedia.fromJson(e as Map<String, dynamic>))
             .toList() ??
         [];
-    
+
     // Log photo URLs for debugging
     if (photos.isNotEmpty) {
-      debugPrint('[MemoryDetail] Parsed ${photos.length} photos for memory ${json['id']}');
+      debugPrint(
+          '[MemoryDetail] Parsed ${photos.length} photos for memory ${json['id']}');
       for (final photo in photos) {
-        debugPrint('[MemoryDetail]   Photo index ${photo.index}: url="${photo.url}"');
+        debugPrint(
+            '[MemoryDetail]   Photo index ${photo.index}: url="${photo.url}"');
       }
       developer.log(
         'MemoryDetail.fromJson: Parsed ${photos.length} photos for memory ${json['id']}',
@@ -104,7 +114,7 @@ class MemoryDetail {
         );
       }
     }
-    
+
     return MemoryDetail(
       id: json['id'] as String,
       userId: json['user_id'] as String,
@@ -112,10 +122,9 @@ class MemoryDetail {
       inputText: json['input_text'] as String?,
       processedText: json['processed_text'] as String?,
       generatedTitle: json['generated_title'] as String?,
-      tags: (json['tags'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      tags:
+          (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
+              [],
       memoryType: json['memory_type'] as String? ?? 'moment',
       capturedAt: DateTime.parse(json['captured_at'] as String),
       createdAt: DateTime.parse(json['created_at'] as String),
@@ -137,6 +146,10 @@ class MemoryDetail {
               ?.map((e) => e.toString())
               .toList() ??
           [],
+      audioPath: json['audio_path'] as String?,
+      audioDuration: json['audio_duration'] != null
+          ? (json['audio_duration'] as num).toDouble()
+          : null,
     );
   }
 }
@@ -209,7 +222,7 @@ class PhotoMedia {
     final source = sourceString == 'localFile'
         ? MediaSource.localFile
         : MediaSource.supabaseStorage;
-    
+
     return PhotoMedia(
       url: json['url'] as String,
       index: json['index'] as int,
@@ -227,7 +240,8 @@ class PhotoMedia {
       'width': width,
       'height': height,
       'caption': caption,
-      'source': source == MediaSource.localFile ? 'localFile' : 'supabaseStorage',
+      'source':
+          source == MediaSource.localFile ? 'localFile' : 'supabaseStorage',
     };
   }
 }
@@ -257,7 +271,7 @@ class VideoMedia {
     final source = sourceString == 'localFile'
         ? MediaSource.localFile
         : MediaSource.supabaseStorage;
-    
+
     return VideoMedia(
       url: json['url'] as String,
       index: json['index'] as int,
@@ -277,8 +291,8 @@ class VideoMedia {
       'duration': duration,
       'poster_url': posterUrl,
       'caption': caption,
-      'source': source == MediaSource.localFile ? 'localFile' : 'supabaseStorage',
+      'source':
+          source == MediaSource.localFile ? 'localFile' : 'supabaseStorage',
     };
   }
 }
-

@@ -16,6 +16,8 @@ import 'package:memories/providers/main_navigation_provider.dart';
 import 'package:memories/providers/memory_processing_status_provider.dart';
 import 'package:memories/services/connectivity_service.dart';
 import 'package:memories/services/offline_memory_queue_service.dart';
+import 'package:memories/providers/supabase_provider.dart';
+import 'package:memories/providers/timeline_image_cache_provider.dart';
 import 'package:memories/widgets/media_strip.dart';
 import 'package:memories/widgets/media_preview.dart';
 import 'package:memories/widgets/memory_metadata_section.dart';
@@ -744,11 +746,9 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
           SliverPersistentHeader(
             pinned: true,
             delegate: _StickyAudioPlayerDelegate(
-              child: StickyAudioPlayer(
-                audioUrl:
-                    null, // TODO: Add audioUrl when available in memory_detail
-                duration:
-                    null, // TODO: Add duration when available in memory_detail
+              child: _StoryAudioPlayer(
+                audioPath: memory.audioPath,
+                audioDuration: memory.audioDuration,
                 storyId: memory.id,
               ),
             ),
@@ -1389,6 +1389,81 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
         backgroundColor: Colors.orange,
         duration: const Duration(seconds: 3),
       ),
+    );
+  }
+}
+
+/// Widget that fetches signed audio URL and passes it to StickyAudioPlayer
+class _StoryAudioPlayer extends ConsumerWidget {
+  final String? audioPath;
+  final double? audioDuration;
+  final String storyId;
+
+  const _StoryAudioPlayer({
+    required this.audioPath,
+    this.audioDuration,
+    required this.storyId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // If no audio path, show placeholder
+    if (audioPath == null || audioPath!.isEmpty) {
+      return StickyAudioPlayer(
+        audioUrl: null,
+        duration: audioDuration,
+        storyId: storyId,
+      );
+    }
+
+    // Check if this is a local file path (for offline queued items)
+    if (audioPath!.startsWith('file://')) {
+      // For local files, pass the path directly
+      return StickyAudioPlayer(
+        audioUrl: audioPath,
+        duration: audioDuration,
+        storyId: storyId,
+      );
+    }
+
+    // Fetch signed URL for remote Supabase Storage audio
+    final supabase = ref.read(supabaseClientProvider);
+    final imageCache = ref.read(timelineImageCacheServiceProvider);
+
+    return FutureBuilder<String>(
+      future: imageCache.getSignedUrlForDetailView(
+        supabase,
+        'stories-audio',
+        audioPath!,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          // If error fetching signed URL, show placeholder
+          debugPrint(
+              '[MemoryDetailScreen] Error fetching audio signed URL: ${snapshot.error}');
+          return StickyAudioPlayer(
+            audioUrl: null,
+            duration: audioDuration,
+            storyId: storyId,
+          );
+        }
+
+        if (!snapshot.hasData) {
+          // Loading state - show placeholder while fetching URL
+          return StickyAudioPlayer(
+            audioUrl: null,
+            duration: audioDuration,
+            storyId: storyId,
+          );
+        }
+
+        // Success - pass signed URL to player
+        return StickyAudioPlayer(
+          audioUrl: snapshot.data,
+          duration: audioDuration,
+          storyId: storyId,
+        );
+      },
     );
   }
 }
