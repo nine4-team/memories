@@ -23,12 +23,12 @@ class OfflineQueueToTimelineAdapter {
     final title = _generateTitleFromInputText(queued.inputText, queued.memoryType);
     final snippet = _generateSnippetFromInputText(queued.inputText);
 
-    // Extract date components from capturedAt
-    final capturedAt = queued.capturedAt ?? queued.createdAt;
-    final year = capturedAt.year;
-    final season = _getSeason(capturedAt.month);
-    final month = capturedAt.month;
-    final day = capturedAt.day;
+    // Use memoryDate if available, otherwise fall back to capturedAt
+    final effectiveDate = queued.memoryDate ?? queued.capturedAt ?? queued.createdAt;
+    final year = effectiveDate.year;
+    final season = _getSeason(effectiveDate.month);
+    final month = effectiveDate.month;
+    final day = effectiveDate.day;
 
     // Determine primary media if available
     PrimaryMedia? primaryMedia;
@@ -65,8 +65,9 @@ class OfflineQueueToTimelineAdapter {
       generatedTitle: null, // Not available for queued items
       tags: List.from(queued.tags),
       memoryType: queued.memoryType,
-      capturedAt: capturedAt,
+      capturedAt: queued.capturedAt ?? queued.createdAt,
       createdAt: queued.createdAt,
+      memoryDate: effectiveDate,
       year: year,
       season: season,
       month: month,

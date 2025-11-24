@@ -67,7 +67,8 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
   CaptureState build() {
     // Watch dictation service to keep it alive for the notifier's lifetime
     ref.watch(dictationServiceProvider);
-    return const CaptureState();
+    // Initialize with current date/time as default memory_date
+    return CaptureState(memoryDate: DateTime.now());
   }
 
   /// Set memory type
@@ -511,14 +512,27 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     state = state.copyWith(capturedAt: timestamp);
   }
 
+  /// Set memory date (user-specified date when memory occurred)
+  void setMemoryDate(DateTime? date) {
+    state = state.copyWith(
+      memoryDate: date,
+      hasUnsavedChanges: true,
+    );
+  }
+
   /// Set input mode (dictation or type)
-  void setInputMode(InputMode mode) {
+  /// Automatically stops dictation when switching to type mode
+  Future<void> setInputMode(InputMode mode) async {
+    // If switching to type mode and dictation is active, stop dictation first
+    if (mode == InputMode.type && state.isDictating) {
+      await stopDictation();
+    }
     state = state.copyWith(inputMode: mode);
   }
 
   /// Load existing memory data into capture state for editing
   ///
-  /// Preloads inputText, tags, location, memory type, and existing media URLs
+  /// Preloads inputText, tags, location, memory type, existing media URLs, and memoryDate
   /// from a MemoryDetail. Sets editingMemoryId to track edit mode.
   void loadMemoryForEdit({
     required String memoryId,
@@ -530,6 +544,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     String? locationStatus,
     List<String>? existingPhotoUrls,
     List<String>? existingVideoUrls,
+    DateTime? memoryDate,
   }) {
     final memoryType = MemoryTypeExtension.fromApiValue(captureType);
 
@@ -543,6 +558,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
       locationStatus: locationStatus,
       existingPhotoUrls: existingPhotoUrls ?? [],
       existingVideoUrls: existingVideoUrls ?? [],
+      memoryDate: memoryDate,
       deletedPhotoUrls: const [],
       deletedVideoUrls: const [],
       hasUnsavedChanges: false, // Reset since we're loading existing data
@@ -565,6 +581,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     double? longitude,
     String? locationStatus,
     DateTime? capturedAt,
+    DateTime? memoryDate,
   }) {
     _editingOfflineLocalId = localId;
 
@@ -578,6 +595,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
       existingPhotoUrls: existingPhotoPaths.map((p) => 'file://$p').toList(),
       existingVideoUrls: existingVideoPaths.map((p) => 'file://$p').toList(),
       captureStartTime: capturedAt,
+      memoryDate: memoryDate,
       editingMemoryId: null, // Do NOT treat this as an online edit
       photoPaths: [], // Start with empty new photos
       videoPaths: [], // Start with empty new videos

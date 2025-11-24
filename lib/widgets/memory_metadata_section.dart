@@ -9,10 +9,12 @@ import 'package:memories/models/memory_type.dart';
 /// metadata is missing.
 class MemoryMetadataSection extends StatelessWidget {
   final MemoryDetail memory;
+  final VoidCallback? onDateTap;
 
   const MemoryMetadataSection({
     super.key,
     required this.memory,
+    this.onDateTap,
   });
 
   @override
@@ -23,10 +25,8 @@ class MemoryMetadataSection extends StatelessWidget {
     final hasRelatedMementos = memory.relatedMementos.isNotEmpty;
     final hasRelatedMemories = hasRelatedStories || hasRelatedMementos;
 
-    // If no metadata to show, return empty widget
-    if (!hasLocation && !hasRelatedMemories) {
-      return const SizedBox.shrink();
-    }
+    // Always show timestamp row (memoryDate is required)
+    // Only hide if no location and no related memories (but timestamp is always shown)
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,45 +48,60 @@ class MemoryMetadataSection extends StatelessWidget {
   }
 
   Widget _buildTimestampRow(BuildContext context, ThemeData theme) {
-    final absoluteTime = _formatAbsoluteTimestamp(memory.capturedAt);
-    final relativeTime = _formatRelativeTimestamp(memory.capturedAt);
+    // Use memoryDate instead of capturedAt (memoryDate is required)
+    final absoluteTime = _formatAbsoluteTimestamp(memory.memoryDate);
+    final relativeTime = _formatRelativeTimestamp(memory.memoryDate);
+    final isEditable = onDateTap != null;
 
     return Semantics(
-      label: 'Captured $absoluteTime, $relativeTime',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.access_time,
-                size: 16,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
+      label: 'Date: $absoluteTime, $relativeTime',
+      button: isEditable,
+      child: InkWell(
+        onTap: isEditable ? onDateTap : null,
+        borderRadius: BorderRadius.circular(4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    absoluteTime,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                if (isEditable) ...[
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.edit,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ],
+            ),
+            if (relativeTime.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.only(left: 24),
                 child: Text(
-                  absoluteTime,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface,
+                  relativeTime,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
             ],
-          ),
-          if (relativeTime.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.only(left: 24),
-              child: Text(
-                relativeTime,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -193,15 +208,19 @@ class MemoryMetadataSection extends StatelessWidget {
 
   /// Format absolute timestamp: "Nov 3, 2025 at 4:12 PM" (locale aware)
   String _formatAbsoluteTimestamp(DateTime date) {
+    // Convert UTC to local time for display
+    final localDate = date.toLocal();
     final dateFormat = DateFormat('MMM d, y');
     final timeFormat = DateFormat('h:mm a');
-    return '${dateFormat.format(date)} at ${timeFormat.format(date)}';
+    return '${dateFormat.format(localDate)} at ${timeFormat.format(localDate)}';
   }
 
   /// Format relative timestamp: "3 weeks ago" or empty if very recent
   String _formatRelativeTimestamp(DateTime date) {
+    // Convert UTC to local time for comparison
+    final localDate = date.toLocal();
     final now = DateTime.now();
-    final difference = now.difference(date);
+    final difference = now.difference(localDate);
 
     if (difference.inDays == 0) {
       // Same day - show relative time within day

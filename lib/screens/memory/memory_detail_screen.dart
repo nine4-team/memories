@@ -798,7 +798,10 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
 
               const SizedBox(height: 24),
               // Metadata section: timestamp, location, and related memories
-              MemoryMetadataSection(memory: memory),
+              MemoryMetadataSection(
+                memory: memory,
+                onDateTap: () => _handleEditDate(context, ref, memory),
+              ),
             ]),
           ),
         ),
@@ -983,6 +986,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
       longitude: detail.locationData?.longitude,
       locationStatus: detail.locationData?.status,
       capturedAt: detail.capturedAt,
+      memoryDate: detail.memoryDate,
     );
 
     // Navigate to capture screen as usual
@@ -1016,6 +1020,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
       locationStatus: memory.locationData?.status,
       existingPhotoUrls: existingPhotoUrls,
       existingVideoUrls: existingVideoUrls,
+      memoryDate: memory.memoryDate,
     );
 
     // Pop back to main navigation shell, then switch to capture tab
@@ -1390,6 +1395,105 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  /// Handle date editing
+  Future<void> _handleEditDate(
+    BuildContext context,
+    WidgetRef ref,
+    MemoryDetail memory,
+  ) async {
+    // Check if online (required for editing)
+    final connectivityService = ref.read(connectivityServiceProvider);
+    final isOnline = await connectivityService.isOnline();
+    
+    if (!isOnline) {
+      _showOfflineTooltip(context, 'Editing date requires internet connection');
+      return;
+    }
+
+    // Convert UTC to local time for display
+    final localDate = memory.memoryDate.toLocal();
+
+    // Show date picker
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: localDate,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2100),
+      helpText: 'Select date',
+    );
+
+    if (pickedDate == null) return;
+
+    // Show time picker immediately after date is selected
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(localDate),
+      helpText: 'Select time',
+    );
+
+    if (pickedTime == null) return;
+
+    // Combine date and time, then convert to UTC for storage
+    final combinedDateTime = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+    
+    // Convert to UTC for storage
+    final utcDateTime = combinedDateTime.toUtc();
+
+    // Show loading indicator
+    if (!context.mounted) return;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    scaffoldMessenger.showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Updating date...'),
+          ],
+        ),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      // Update via provider
+      final notifier = ref.read(memoryDetailNotifierProvider(memory.id).notifier);
+      await notifier.updateMemoryDate(utcDateTime);
+
+      if (!context.mounted) return;
+      scaffoldMessenger.hideCurrentSnackBar();
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Date updated'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      scaffoldMessenger.hideCurrentSnackBar();
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Failed to update date: ${e.toString()}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 }
 

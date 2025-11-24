@@ -135,6 +135,7 @@ class MemoryDetailService {
           'captured_at': memory.capturedAt.toIso8601String(),
           'created_at': memory.createdAt.toIso8601String(),
           'updated_at': memory.updatedAt.toIso8601String(),
+          'memory_date': memory.memoryDate?.toIso8601String(),
           'public_share_token': memory.publicShareToken,
           'location_data': memory.locationData != null
               ? {
@@ -231,6 +232,42 @@ class MemoryDetailService {
     } catch (e) {
       // Log but don't throw - cache clearing failure shouldn't block deletion
       debugPrint('[MemoryDetailService] Failed to clear cache: $e');
+    }
+  }
+
+  /// Update memory_date for a memory
+  ///
+  /// [memoryId] is the UUID of the memory to update
+  /// [memoryDate] is the new date/time (null to clear it)
+  ///
+  /// Throws an exception if the memory is not found or user doesn't have permission
+  Future<void> updateMemoryDate(String memoryId, DateTime? memoryDate) async {
+    try {
+      debugPrint('[MemoryDetailService] Updating memory_date for memory: $memoryId');
+      
+      final updateData = <String, dynamic>{
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      };
+      
+      if (memoryDate != null) {
+        updateData['memory_date'] = memoryDate.toUtc().toIso8601String();
+      } else {
+        // Set to null to clear the field
+        updateData['memory_date'] = null;
+      }
+      
+      await _supabase
+          .from('memories')
+          .update(updateData)
+          .eq('id', memoryId);
+      
+      // Clear cache so fresh data is fetched next time
+      await _clearCache(memoryId);
+      
+      debugPrint('[MemoryDetailService] Successfully updated memory_date');
+    } catch (e) {
+      debugPrint('[MemoryDetailService] Error updating memory_date: $e');
+      throw Exception('Failed to update memory date: $e');
     }
   }
 

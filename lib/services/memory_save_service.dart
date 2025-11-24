@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:async';
 import 'package:memories/models/capture_state.dart';
 import 'package:memories/models/memory_type.dart';
-import 'package:memories/models/queued_memory.dart';
 import 'package:memories/providers/supabase_provider.dart';
 import 'package:memories/services/connectivity_service.dart';
 import 'package:memories/services/offline_memory_queue_service.dart';
@@ -243,6 +242,10 @@ class MemorySaveService {
         momentData['device_timestamp'] =
             state.captureStartTime!.toUtc().toIso8601String();
       }
+
+      // Add memory_date (required - use user-specified or fall back to now)
+      final memoryDate = state.memoryDate ?? now;
+      momentData['memory_date'] = memoryDate.toUtc().toIso8601String();
 
       // Add location if available (PostGIS geography format)
       if (locationWkt != null) {
@@ -573,6 +576,10 @@ class MemorySaveService {
         'location_status': state.locationStatus,
         'updated_at': now.toIso8601String(),
       };
+
+      // Add memory_date (required - use user-specified or fall back to now)
+      final memoryDate = state.memoryDate ?? now;
+      updateData['memory_date'] = memoryDate.toUtc().toIso8601String();
 
       // Add location if available
       if (locationWkt != null) {

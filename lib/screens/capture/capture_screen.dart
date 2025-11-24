@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dictation/flutter_dictation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:memories/models/memory_type.dart';
 import 'package:memories/models/capture_state.dart';
 import 'package:memories/models/queued_memory.dart';
@@ -909,6 +910,14 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                   ],
                                 ),
                               ),
+
+                            const SizedBox(height: 8),
+
+                            // Date picker row - full-width tappable bar
+                            _MemoryDatePicker(
+                              memoryDate: state.memoryDate ?? DateTime.now(),
+                              onDateChanged: (date) => notifier.setMemoryDate(date),
+                            ),
 
                             const SizedBox(height: 16),
 
@@ -1913,6 +1922,113 @@ class _SwipeHint extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Date picker widget for selecting memory date and time
+class _MemoryDatePicker extends StatelessWidget {
+  final DateTime memoryDate;
+  final ValueChanged<DateTime> onDateChanged;
+
+  const _MemoryDatePicker({
+    required this.memoryDate,
+    required this.onDateChanged,
+  });
+
+  Future<void> _showDatePicker(BuildContext context) async {
+    // Convert UTC to local time for display
+    final localDate = memoryDate.toLocal();
+    
+    // Show date picker
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: localDate,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2100),
+      helpText: 'Select date',
+    );
+
+    if (pickedDate == null) return;
+
+    // Show time picker immediately after date is selected
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(localDate),
+      helpText: 'Select time',
+    );
+
+    if (pickedTime == null) return;
+
+    // Combine date and time, then convert to UTC for storage
+    final combinedDateTime = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+    
+    // Convert to UTC for storage
+    final utcDateTime = combinedDateTime.toUtc();
+    
+    onDateChanged(utcDateTime);
+  }
+
+  String _formatDate(DateTime date) {
+    final localDate = date.toLocal();
+    final dateFormat = DateFormat('MMM d, y');
+    final timeFormat = DateFormat('h:mm a');
+    return '${dateFormat.format(localDate)} at ${timeFormat.format(localDate)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Date & time: ${_formatDate(memoryDate)}',
+      button: true,
+      child: InkWell(
+        onTap: () => _showDatePicker(context),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.calendar_today,
+                size: 18,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _formatDate(memoryDate),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
         ),
       ),
     );

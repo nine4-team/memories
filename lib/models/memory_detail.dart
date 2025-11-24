@@ -23,6 +23,7 @@ class MemoryDetail {
   final DateTime capturedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime memoryDate;
   final String? publicShareToken;
   final LocationData? locationData;
   final List<PhotoMedia> photos;
@@ -48,6 +49,7 @@ class MemoryDetail {
     required this.capturedAt,
     required this.createdAt,
     required this.updatedAt,
+    required this.memoryDate,
     this.publicShareToken,
     this.locationData,
     required this.photos,
@@ -86,6 +88,9 @@ class MemoryDetail {
     }
     return null;
   }
+
+  /// Effective date - uses memoryDate (now required)
+  DateTime get effectiveDate => memoryDate;
 
   /// Create from Supabase RPC response
   factory MemoryDetail.fromJson(Map<String, dynamic> json) {
@@ -129,6 +134,7 @@ class MemoryDetail {
       capturedAt: DateTime.parse(json['captured_at'] as String),
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
+      memoryDate: DateTime.parse(json['memory_date'] as String),
       publicShareToken: json['public_share_token'] as String?,
       locationData: json['location_data'] != null
           ? LocationData.fromJson(json['location_data'] as Map<String, dynamic>)

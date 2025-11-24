@@ -291,7 +291,7 @@ class UnifiedFeedRepository {
       );
 
       final merged = [...queued, ...previews]
-        ..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+        ..sort((a, b) => b.effectiveDate.compareTo(a.effectiveDate));
 
       final page = merged.take(batchSize).toList();
 
@@ -314,7 +314,7 @@ class UnifiedFeedRepository {
     // For Phase 1, it is acceptable to:
     // - show online results + queued; preview index is updated but not required for online rendering.
     final merged = [...onlineResult.memories, ...queued]
-      ..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+      ..sort((a, b) => b.effectiveDate.compareTo(a.effectiveDate));
 
     // Re-derive pagination over merged list.
     final startIndex =

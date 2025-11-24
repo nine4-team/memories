@@ -187,4 +187,24 @@ class MemoryDetailNotifier extends _$MemoryDetailNotifier {
       return null;
     }
   }
+
+  /// Update memory date
+  ///
+  /// [memoryDate] is the new date/time (required, cannot be null)
+  /// Refreshes the memory detail after update
+  Future<void> updateMemoryDate(DateTime memoryDate) async {
+    try {
+      debugPrint('[MemoryDetailNotifier] Updating memory_date for: $_memoryId');
+      final service = ref.read(memoryDetailServiceProvider);
+      await service.updateMemoryDate(_memoryId, memoryDate);
+      debugPrint('[MemoryDetailNotifier] Successfully updated memory_date');
+      
+      // Refresh memory detail to get updated data
+      await refresh();
+    } catch (e, stackTrace) {
+      debugPrint('[MemoryDetailNotifier] Error updating memory_date: $e');
+      debugPrint('[MemoryDetailNotifier] Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
 }

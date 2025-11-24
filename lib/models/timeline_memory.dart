@@ -20,6 +20,7 @@ class TimelineMemory {
   final String memoryType;
   final DateTime capturedAt;
   final DateTime createdAt;
+  final DateTime memoryDate;
   final int year;
   final String season;
   final int month;
@@ -62,6 +63,7 @@ class TimelineMemory {
     required this.memoryType,
     required this.capturedAt,
     required this.createdAt,
+    required this.memoryDate,
     required this.year,
     required this.season,
     required this.month,
@@ -115,6 +117,9 @@ class TimelineMemory {
   /// Whether the user can open a full detail view while offline.
   bool get isAvailableOffline => isOfflineQueued || isDetailCachedLocally;
 
+  /// Effective date - uses memoryDate (now required)
+  DateTime get effectiveDate => memoryDate;
+
   /// Create a copy with updated fields
   TimelineMemory copyWith({
     String? id,
@@ -127,6 +132,7 @@ class TimelineMemory {
     String? memoryType,
     DateTime? capturedAt,
     DateTime? createdAt,
+    DateTime? memoryDate,
     int? year,
     String? season,
     int? month,
@@ -153,6 +159,7 @@ class TimelineMemory {
       memoryType: memoryType ?? this.memoryType,
       capturedAt: capturedAt ?? this.capturedAt,
       createdAt: createdAt ?? this.createdAt,
+      memoryDate: memoryDate ?? this.memoryDate,
       year: year ?? this.year,
       season: season ?? this.season,
       month: month ?? this.month,
@@ -194,6 +201,7 @@ class TimelineMemory {
       memoryType: json['memory_type'] as String? ?? 'moment',
       capturedAt: DateTime.parse(json['captured_at'] as String),
       createdAt: DateTime.parse(json['created_at'] as String),
+      memoryDate: DateTime.parse(json['memory_date'] as String),
       year: json['year'] as int,
       season: json['season'] as String,
       month: json['month'] as int,
@@ -228,6 +236,7 @@ class TimelineMemory {
       'memory_type': memoryType,
       'captured_at': capturedAt.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
+      'memory_date': memoryDate.toIso8601String(),
       'year': year,
       'season': season,
       'month': month,

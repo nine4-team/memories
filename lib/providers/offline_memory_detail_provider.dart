@@ -29,6 +29,9 @@ class OfflineMemoryDetailNotifier extends _$OfflineMemoryDetailNotifier {
   /// Convert a QueuedMemory to MemoryDetail
   MemoryDetail _toDetailFromQueuedMemory(QueuedMemory queued) {
     final capturedAt = queued.capturedAt ?? queued.createdAt;
+    // memoryDate is required on MemoryDetail, so ensure we always provide a value.
+    // Prefer the explicit memoryDate when set, otherwise fall back to capturedAt/createdAt.
+    final memoryDate = queued.memoryDate ?? capturedAt;
 
     // Convert photo paths to PhotoMedia
     final photos = queued.photoPaths.asMap().entries.where((entry) {
@@ -104,6 +107,7 @@ class OfflineMemoryDetailNotifier extends _$OfflineMemoryDetailNotifier {
       createdAt: queued.createdAt,
       updatedAt:
           queued.createdAt, // Use createdAt as updatedAt for queued items
+      memoryDate: memoryDate,
       publicShareToken: null, // Not available for queued items
       locationData: locationData,
       photos: photos,

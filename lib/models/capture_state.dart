@@ -41,6 +41,9 @@ class CaptureState {
   /// Timestamp when capture was saved
   final DateTime? capturedAt;
   
+  /// User-specified date and time when the memory occurred (required)
+  final DateTime? memoryDate;
+  
   /// Audio file path (cached audio file from dictation)
   /// Set when dictation stops and audio is persisted
   /// Used for stories - local path to audio recording
@@ -99,6 +102,7 @@ class CaptureState {
     this.captureStartTime,
     this.elapsedDuration = Duration.zero,
     this.capturedAt,
+    this.memoryDate,
     this.audioPath,
     this.audioDuration,
     this.dictationLocale,
@@ -128,6 +132,7 @@ class CaptureState {
     DateTime? captureStartTime,
     Duration? elapsedDuration,
     DateTime? capturedAt,
+    DateTime? memoryDate,
     String? audioPath,
     double? audioDuration,
     String? dictationLocale,
@@ -162,6 +167,7 @@ class CaptureState {
       captureStartTime: captureStartTime ?? this.captureStartTime,
       elapsedDuration: elapsedDuration ?? this.elapsedDuration,
       capturedAt: capturedAt ?? this.capturedAt,
+      memoryDate: memoryDate ?? this.memoryDate,
       audioPath: clearAudio ? null : (audioPath ?? this.audioPath),
       audioDuration: clearAudio ? null : (audioDuration ?? this.audioDuration),
       dictationLocale: dictationLocale ?? this.dictationLocale,

@@ -50,6 +50,9 @@ class QueuedMemory {
   /// Captured timestamp
   final DateTime? capturedAt;
 
+  /// User-specified date and time when the memory occurred
+  final DateTime? memoryDate;
+
   /// Queue status
   final String status; // 'queued', 'syncing', 'failed', 'completed'
 
@@ -89,6 +92,7 @@ class QueuedMemory {
     this.longitude,
     this.locationStatus,
     this.capturedAt,
+    this.memoryDate,
     this.status = 'queued',
     this.retryCount = 0,
     required this.createdAt,
@@ -121,6 +125,7 @@ class QueuedMemory {
       longitude: state.longitude,
       locationStatus: state.locationStatus,
       capturedAt: capturedAt ?? DateTime.now(),
+      memoryDate: state.memoryDate,
       createdAt: DateTime.now(),
     );
   }
@@ -139,6 +144,7 @@ class QueuedMemory {
       longitude: longitude,
       locationStatus: locationStatus,
       capturedAt: capturedAt,
+      memoryDate: memoryDate,
       audioPath: audioPath,
       audioDuration: audioDuration,
     );
@@ -204,6 +210,7 @@ class QueuedMemory {
       longitude: state.longitude,
       locationStatus: state.locationStatus,
       capturedAt: state.capturedAt ?? capturedAt,
+      memoryDate: state.memoryDate ?? this.memoryDate,
       status: status ?? this.status,
       retryCount: retryCount ?? this.retryCount,
       createdAt: createdAt ?? this.createdAt,
@@ -228,6 +235,7 @@ class QueuedMemory {
     double? longitude,
     String? locationStatus,
     DateTime? capturedAt,
+    DateTime? memoryDate,
     String? status,
     int? retryCount,
     DateTime? createdAt,
@@ -249,6 +257,7 @@ class QueuedMemory {
       longitude: longitude ?? this.longitude,
       locationStatus: locationStatus ?? this.locationStatus,
       capturedAt: capturedAt ?? this.capturedAt,
+      memoryDate: memoryDate ?? this.memoryDate,
       status: status ?? this.status,
       retryCount: retryCount ?? this.retryCount,
       createdAt: createdAt ?? this.createdAt,
@@ -290,6 +299,7 @@ class QueuedMemory {
       'longitude': longitude,
       'locationStatus': locationStatus,
       'capturedAt': capturedAt?.toIso8601String(),
+      'memoryDate': memoryDate?.toIso8601String(),
       'status': status,
       'retryCount': retryCount,
       'createdAt': createdAt.toIso8601String(),
@@ -318,6 +328,9 @@ class QueuedMemory {
       locationStatus: json['locationStatus'] as String?,
       capturedAt: json['capturedAt'] != null
           ? DateTime.parse(json['capturedAt'] as String)
+          : null,
+      memoryDate: json['memoryDate'] != null
+          ? DateTime.parse(json['memoryDate'] as String)
           : null,
       status: json['status'] as String? ?? 'queued',
       retryCount: json['retryCount'] as int? ?? 0,

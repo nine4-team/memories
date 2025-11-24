@@ -12,11 +12,12 @@ import 'package:memories/models/timeline_memory.dart';
 class PreviewIndexToTimelineAdapter {
   /// Convert a LocalMemoryPreview to a TimelineMemory
   static TimelineMemory fromPreview(LocalMemoryPreview preview) {
-    // Extract date components from capturedAt
-    final year = preview.capturedAt.year;
-    final season = _getSeason(preview.capturedAt.month);
-    final month = preview.capturedAt.month;
-    final day = preview.capturedAt.day;
+    // Use capturedAt as memoryDate (preview doesn't store separate memoryDate)
+    final memoryDate = preview.capturedAt;
+    final year = memoryDate.year;
+    final season = _getSeason(memoryDate.month);
+    final month = memoryDate.month;
+    final day = memoryDate.day;
 
     return TimelineMemory(
       id: preview.serverId,
@@ -29,6 +30,7 @@ class PreviewIndexToTimelineAdapter {
       memoryType: preview.memoryType.apiValue,
       capturedAt: preview.capturedAt,
       createdAt: preview.capturedAt, // Use capturedAt as fallback
+      memoryDate: memoryDate,
       year: year,
       season: season,
       month: month,

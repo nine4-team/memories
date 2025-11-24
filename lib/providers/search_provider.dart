@@ -118,6 +118,11 @@ class SearchResults extends _$SearchResults {
 
   @override
   SearchResultsState build() {
+    // Always start from a known initial state before we do anything that
+    // reads or updates `state` (e.g., inside `_performSearch`). This avoids
+    // "uninitialized provider" errors on first use in the app shell.
+    state = SearchResultsState.initial();
+
     // Watch debounced query and trigger search when it changes
     final debouncedQuery = ref.watch(debouncedSearchQueryProvider);
     
@@ -131,10 +136,10 @@ class SearchResults extends _$SearchResults {
     } else if (debouncedQuery.isEmpty && _lastQuery != null) {
       // Clear results when query is cleared
       _lastQuery = null;
-      return SearchResultsState.initial();
+      // `state` has already been reset to the initial value above.
     }
 
-    return SearchResultsState.initial();
+    return state;
   }
 
   Future<void> _performSearch(String query, {required int page}) async {
