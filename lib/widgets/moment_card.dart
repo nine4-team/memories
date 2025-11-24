@@ -598,11 +598,10 @@ class MomentCard extends ConsumerWidget {
     );
   }
 
-  /// Format absolute timestamp: "Nov 3, 2025 at 4:12 PM" (locale aware)
+  /// Format absolute capture date: "Nov 3, 2025" (locale aware, date only)
   String _formatAbsoluteTimestamp(DateTime date, Locale locale) {
     final dateFormat = DateFormat('MMM d, y', locale.toString());
-    final timeFormat = DateFormat('h:mm a', locale.toString());
-    return '${dateFormat.format(date)} at ${timeFormat.format(date)}';
+    return dateFormat.format(date);
   }
 }
 
