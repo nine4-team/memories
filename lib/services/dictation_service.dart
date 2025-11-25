@@ -53,8 +53,21 @@ class DictationService {
   /// Stream controller for errors
   final _errorController = StreamController<String>.broadcast();
   
-  /// Current transcript (accumulated from partial + final results)
-  String _currentTranscript = '';
+  /// Accumulated final transcript (final results that have been committed)
+  /// CRITICAL: This stores only final results - partial results are tracked separately
+  String _accumulatedFinalTranscript = '';
+  
+  /// Current partial transcript (the latest partial result from speech recognition)
+  /// CRITICAL: Partial results replace the previous partial, but final results append to accumulated
+  String _currentPartialTranscript = '';
+  
+  /// Get the current full transcript (accumulated final + current partial)
+  String get _currentTranscript => 
+      _accumulatedFinalTranscript.isEmpty 
+          ? _currentPartialTranscript 
+          : _currentPartialTranscript.isEmpty
+              ? _accumulatedFinalTranscript
+              : '$_accumulatedFinalTranscript $_currentPartialTranscript';
   
   /// Current status
   DictationStatus _status = DictationStatus.idle;
@@ -161,7 +174,10 @@ class DictationService {
       await ensureInitialized();
       
       // Reset transcript and audio file state
-      _currentTranscript = '';
+      // CRITICAL: Reset both accumulated final and partial transcripts
+      // This ensures we start fresh, but the provider will append to existing text
+      _accumulatedFinalTranscript = '';
+      _currentPartialTranscript = '';
       _audioFileCompleter = Completer<DictationAudioFile?>();
       
       // Configure audio preservation if new plugin is enabled
@@ -176,13 +192,23 @@ class DictationService {
       await _nativeService.startListening(
         onResult: (text, isFinal) {
           if (isFinal) {
-            // Final result: append to transcript
-            _currentTranscript = '$_currentTranscript$text '.trim();
+            // Final result: append to accumulated final transcript
+            // CRITICAL: Final results append to accumulated transcript, never overwrite
+            // The accumulated final transcript persists across partial updates
+            _accumulatedFinalTranscript = '$_accumulatedFinalTranscript$text '.trim();
+            // Clear partial since it's now finalized
+            _currentPartialTranscript = '';
           } else {
-            // Partial result: update current transcript (replace, don't append)
-            // The plugin sends incremental updates
-            _currentTranscript = text;
+            // Partial result: replace current partial transcript
+            // CRITICAL: Partial results replace only the current partial, not accumulated final
+            // The plugin sends incremental updates that replace the previous partial result
+            // This is only the NEW dictation text being recognized, not the full text
+            // The provider layer will append the full transcript to existing text - we NEVER overwrite
+            _currentPartialTranscript = text;
           }
+          // CRITICAL: Emit the combined transcript (accumulated final + current partial)
+          // The provider MUST append this to existing text, never overwrite
+          // This ensures partial results properly replace previous partials while preserving final results
           _transcriptController.add(_currentTranscript);
         },
         onStatus: (status) {
@@ -298,8 +324,10 @@ class DictationService {
   }
 
   /// Clear current transcript
+  /// CRITICAL: This clears dictation transcript only, does not affect existing text in provider
   void clear() {
-    _currentTranscript = '';
+    _accumulatedFinalTranscript = '';
+    _currentPartialTranscript = '';
     _transcriptController.add('');
     _resetWaveform();
   }

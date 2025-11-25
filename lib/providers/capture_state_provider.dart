@@ -92,6 +92,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
   Timer? _elapsedTimer;
 
   /// Text that existed before dictation started (preserved for appending)
+  /// CRITICAL: This is used to append dictation text - dictation MUST NEVER overwrite existing text
   String? _textBeforeDictation;
 
   /// Local ID of queued memory being edited offline (null when not editing offline)
@@ -138,7 +139,8 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     // Cancel any existing subscriptions
     _cancelSubscriptions();
 
-    // Preserve existing inputText so dictation can append to it
+    // CRITICAL: Preserve existing inputText so dictation can append to it
+    // Dictation MUST NEVER overwrite existing text - it can only append
     _textBeforeDictation = state.inputText;
 
     // Generate session ID if not already set (for audio file tracking)
@@ -179,17 +181,35 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     });
 
     // Subscribe to transcript updates (result stream)
-    // Append dictation transcript to existing text instead of overwriting
+    // CRITICAL: Dictation MUST append to existing text, NEVER overwrite it
+    // The dictation service sends incremental updates:
+    // - Partial results: replace the previous partial result
+    // - Final results: append to accumulated final results
+    // We always combine preserved text + new dictation text
     _transcriptSubscription =
         dictationService.transcriptStream.listen((transcript) {
-      // Combine preserved text with new dictation transcript
+      // CRITICAL: Always append dictation text to preserved text, never overwrite
+      // Get the text that existed before dictation started
       final preservedText = _textBeforeDictation?.trim() ?? '';
+      
+      // Determine if this is replacing a previous partial result
+      // If the new transcript is shorter or different from the last one we saw,
+      // and we've already set inputText, this might be a partial replacement
+      // However, the service handles partial replacements internally, so we just
+      // need to combine preserved text with the current transcript
+      
+      // CRITICAL: Always combine preserved text with dictation transcript
+      // If preserved text exists, append dictation to it (with space)
+      // If no preserved text, use dictation text directly
+      // NEVER overwrite existing text - only append dictation results
       final combinedText = preservedText.isEmpty
           ? transcript
           : transcript.isEmpty
               ? preservedText
               : '$preservedText $transcript';
 
+      // CRITICAL: Update state with combined text - this preserves existing text
+      // and appends new dictation, never overwrites
       state = state.copyWith(
         inputText: combinedText.isEmpty ? null : combinedText,
         hasUnsavedChanges: true,
@@ -325,6 +345,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
 
     // Clear preserved text for next dictation session
     // The current inputText already has the combined text from the transcript subscription
+    // CRITICAL: The transcript subscription always appends to preserved text, never overwrites
     _textBeforeDictation = null;
 
     // Reset waveform state and store cached audio path
