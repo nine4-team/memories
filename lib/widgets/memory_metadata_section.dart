@@ -9,18 +9,20 @@ import 'package:memories/models/memory_type.dart';
 /// metadata is missing.
 class MemoryMetadataSection extends StatelessWidget {
   final MemoryDetail memory;
-  final VoidCallback? onDateTap;
-  final VoidCallback? onLocationTap;
   /// Memory location label (client-side only, from CaptureState when editing)
   /// This is separate from memory.memoryLocationData which is persisted location
   final String? memoryLocationLabel;
+  final bool showTimestamp;
+  final bool showLocation;
+  final bool showRelatedMemories;
 
   const MemoryMetadataSection({
     super.key,
     required this.memory,
-    this.onDateTap,
-    this.onLocationTap,
     this.memoryLocationLabel,
+    this.showTimestamp = true,
+    this.showLocation = true,
+    this.showRelatedMemories = true,
   });
 
   @override
@@ -32,25 +34,33 @@ class MemoryMetadataSection extends StatelessWidget {
     final hasRelatedMementos = memory.relatedMementos.isNotEmpty;
     final hasRelatedMemories = hasRelatedStories || hasRelatedMementos;
 
-    // Always show timestamp row (memoryDate is required)
-    // Only hide if no location and no related memories (but timestamp is always shown)
+    final children = <Widget>[];
+
+    if (showTimestamp) {
+      children.add(_buildTimestampRow(context, theme));
+    }
+
+    if (showLocation && hasLocation) {
+      if (children.isNotEmpty) {
+        children.add(const SizedBox(height: 12));
+      }
+      children.add(_buildLocationRow(context, theme));
+    }
+
+    if (showRelatedMemories && hasRelatedMemories) {
+      if (children.isNotEmpty) {
+        children.add(const SizedBox(height: 12));
+      }
+      children.add(_buildRelatedMemoriesSection(context, theme));
+    }
+
+    if (children.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Timestamp row (always shown)
-        _buildTimestampRow(context, theme),
-        // Location row (only if location data exists)
-        if (hasLocation) ...[
-          const SizedBox(height: 12),
-          _buildLocationRow(context, theme),
-        ],
-        // Related memories section (only if related memories exist)
-        if (hasRelatedMemories) ...[
-          const SizedBox(height: 12),
-          _buildRelatedMemoriesSection(context, theme),
-        ],
-      ],
+      children: children,
     );
   }
 
@@ -58,57 +68,42 @@ class MemoryMetadataSection extends StatelessWidget {
     // Use memoryDate instead of capturedAt (memoryDate is required)
     final absoluteTime = _formatAbsoluteTimestamp(memory.memoryDate);
     final relativeTime = _formatRelativeTimestamp(memory.memoryDate);
-    final isEditable = onDateTap != null;
+
+    final absoluteStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurface,
+    );
+    final relativeStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
 
     return Semantics(
       label: 'Date: $absoluteTime, $relativeTime',
-      button: isEditable,
-      child: InkWell(
-        onTap: isEditable ? onDateTap : null,
-        borderRadius: BorderRadius.circular(4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.calendar_today,
-                  size: 16,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    absoluteTime,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-                if (isEditable) ...[
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.edit,
-                    size: 16,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ],
-            ),
-            if (relativeTime.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Padding(
-                padding: const EdgeInsets.only(left: 24),
-                child: Text(
-                  relativeTime,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
+      child: Row(
+            children: [
+              Icon(
+                Icons.calendar_today,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-            ],
-          ],
-        ),
+              const SizedBox(width: 8),
+              Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: absoluteTime,
+                    style: absoluteStyle,
+          ),
+                  if (relativeTime.isNotEmpty)
+                    TextSpan(
+                      text: ' | $relativeTime',
+                      style: relativeStyle,
+                ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -118,40 +113,26 @@ class MemoryMetadataSection extends StatelessWidget {
     final locationText = memoryLocationLabel ??
         memory.memoryLocationData?.formattedLocation ??
         'Current location';
-    final isEditable = onLocationTap != null;
 
     return Semantics(
       label: 'Location: $locationText',
-      button: isEditable,
-      child: InkWell(
-        onTap: isEditable ? onLocationTap : null,
-        borderRadius: BorderRadius.circular(4),
-        child: Row(
-          children: [
-            Icon(
-              Icons.location_on,
-              size: 16,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                locationText,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.location_on,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              locationText,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface,
               ),
             ),
-            if (isEditable) ...[
-              const SizedBox(width: 8),
-              Icon(
-                Icons.edit,
-                size: 16,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
