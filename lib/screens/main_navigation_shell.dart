@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:memories/providers/capture_state_provider.dart';
 import 'package:memories/screens/capture/capture_screen.dart';
 import 'package:memories/screens/timeline/unified_timeline_screen.dart';
 import 'package:memories/screens/settings/settings_screen.dart';
@@ -24,6 +25,7 @@ class _MainNavigationShellState extends ConsumerState<MainNavigationShell> {
     UnifiedTimelineScreen(),
     SettingsScreen(),
   ];
+  MainNavigationTab? _lastSelectedTab;
 
   int _getTabIndex(MainNavigationTab tab) {
     switch (tab) {
@@ -53,6 +55,21 @@ class _MainNavigationShellState extends ConsumerState<MainNavigationShell> {
   Widget build(BuildContext context) {
     final selectedTab = ref.watch(mainNavigationTabNotifierProvider);
     final currentIndex = _getTabIndex(selectedTab);
+
+    if (_lastSelectedTab != selectedTab) {
+      if (selectedTab == MainNavigationTab.capture) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref
+              .read(captureStateNotifierProvider.notifier)
+              .captureLocation()
+              .catchError((e) {
+            debugPrint(
+                '[MainNavigationShell] Failed to refresh capture location: $e');
+          });
+        });
+      }
+      _lastSelectedTab = selectedTab;
+    }
 
     return Scaffold(
         body: IndexedStack(

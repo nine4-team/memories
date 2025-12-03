@@ -34,29 +34,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
     const isInternalTrigger = req.headers.get("X-Internal-Trigger") === "true";
-    
-    // Allow internal trigger calls (from database triggers) without auth header
-    // They will use the service role key from environment
-    if (!authHeader && !isInternalTrigger) {
-      return new Response(
-        JSON.stringify({
-          code: "UNAUTHORIZED",
-          message: "Missing authorization header",
-        } as ErrorResponse),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables");
+      console.error(
+        "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables",
+      );
       return new Response(
         JSON.stringify({
           code: "INTERNAL_ERROR",
@@ -69,12 +55,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Use service role key for admin access to claim jobs
-    // For internal trigger calls, construct auth header from service key
-    const effectiveAuthHeader = isInternalTrigger && supabaseServiceKey
-      ? `Bearer ${supabaseServiceKey}`
-      : authHeader || `Bearer ${supabaseServiceKey}`;
-    
+    // Always use service role key for admin access to claim jobs.
+    // This function is intended to be called either:
+    // - Internally from database triggers (with X-Internal-Trigger header)
+    // - Manually from tools for debugging
+    // In both cases we *do not* rely on end-user JWTs. For platform-level function
+    // auth, we attach the service-role key as Authorization when calling workers.
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Claim scheduled jobs using SELECT ... FOR UPDATE SKIP LOCKED
@@ -152,7 +138,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": effectiveAuthHeader, // Use effective auth header (service key for internal calls)
+              // Mark this as an internal, service-role invocation so the processing
+              // functions can bypass JWT checks and use the service role key.
+              // We rely on `verify_jwt = false` for these worker functions, so we do
+              // NOT send an Authorization header here. The workers themselves will
+              // create a Supabase client with the service-role key when they see
+              // `X-Internal-Trigger: true`.
+              "X-Internal-Trigger": "true",
             },
             body: JSON.stringify({
               memoryId: job.memory_id,

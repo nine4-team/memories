@@ -108,6 +108,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
     _previousInputText = inputText;
   }
 
+  void _refreshLocationAfterClear(CaptureStateNotifier notifier) {
+    notifier.captureLocation().catchError((e) {
+      debugPrint('[CaptureScreen] Failed to refresh location after clear: $e');
+    });
+  }
+
   Future<void> _handleAddPhoto() async {
     final mediaPicker = ref.read(mediaPickerServiceProvider);
     final notifier = ref.read(captureStateNotifierProvider.notifier);
@@ -317,6 +323,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
             ),
           );
           await notifier.clear(keepAudioIfQueued: true);
+          _refreshLocationAfterClear(notifier);
           // Navigate back to timeline / detail
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
@@ -446,6 +453,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
 
           // Clear state completely (including editingMemoryId)
           await notifier.clear();
+          _refreshLocationAfterClear(notifier);
           // Reset checkmark before navigation
           setState(() {
             _showSuccessCheckmark = false;
@@ -572,6 +580,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
     }
 
     await notifier.clear(keepAudioIfQueued: true);
+    _refreshLocationAfterClear(notifier);
 
     setState(() {
       _showSuccessCheckmark = false;
@@ -1157,6 +1166,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
 
     // Clear state completely
     await notifier.clear();
+    _refreshLocationAfterClear(notifier);
 
     // Navigate back if editing (to detail screen)
     // If creating, stay on capture screen (or pop if screen was pushed)

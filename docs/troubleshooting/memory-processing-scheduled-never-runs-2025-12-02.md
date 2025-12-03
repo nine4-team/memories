@@ -233,6 +233,29 @@ In Supabase Dashboard → Edge Functions:
   - There is a recent deployment.
   - There are no obvious runtime errors in the logs.
 
+**Critical:** The `dispatch-memory-processing` function **must have JWT verification disabled** because it's called from database triggers (pg_net) which don't have JWT tokens.
+
+To disable JWT verification:
+
+**Option 1: Via Supabase CLI (Recommended - uses config.toml)**
+```bash
+supabase functions deploy dispatch-memory-processing --no-verify-jwt
+```
+
+**Option 2: Via Dashboard**
+1. Go to Edge Functions → `dispatch-memory-processing`
+2. Click Settings/Edit
+3. Disable "Verify JWT" or set it to `false`
+4. Save
+
+**Option 3: Via config.toml (for future deployments)**
+The `supabase/config.toml` file has been created with:
+```toml
+[functions.dispatch-memory-processing]
+verify_jwt = false
+```
+This will be automatically applied when deploying via `supabase functions deploy`.
+
 If any of these are missing or out-of-date, redeploy from this repo.
 
 ### 4.3 Keep the Offline Story Intact

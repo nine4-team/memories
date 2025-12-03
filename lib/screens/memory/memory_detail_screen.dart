@@ -244,10 +244,10 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                   message = 'Generating narrative…';
                   break;
                 default:
-                  message = 'Processing in background…';
+                  message = 'Processing memory…';
               }
             } else {
-              message = 'Processing in background…';
+              message = 'Processing memory…';
             }
             background = Colors.blue.shade50;
             textColor = Colors.blue.shade900;

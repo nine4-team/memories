@@ -292,38 +292,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({
-          code: "UNAUTHORIZED",
-          message: "Missing authorization header",
-        } as ErrorResponse),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    if (!token) {
-      return new Response(
-        JSON.stringify({
-          code: "UNAUTHORIZED",
-          message: "Invalid authorization header format",
-        } as ErrorResponse),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
+    const isInternalTrigger = req.headers.get("X-Internal-Trigger") === "true";
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error("Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variables");
+    if (!supabaseUrl) {
+      console.error("Missing SUPABASE_URL environment variable");
       return new Response(
         JSON.stringify({
           code: "INTERNAL_ERROR",
@@ -336,30 +312,64 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: authHeader,
-        },
-      },
-    });
+    // Choose auth mode:
+    // - Internal trigger: service role, no user JWT required.
+    // - External (user) call: use anon key with forwarded Authorization header, rely on RLS.
+    let supabaseClient;
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser(token);
+    if (isInternalTrigger) {
+      if (!supabaseServiceKey) {
+        console.error("Missing SUPABASE_SERVICE_ROLE_KEY for internal trigger");
+        return new Response(
+          JSON.stringify({
+            code: "INTERNAL_ERROR",
+            message: "Server configuration error",
+          } as ErrorResponse),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
 
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({
-          code: "UNAUTHORIZED",
-          message: "Invalid or expired token",
-        } as ErrorResponse),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
+      supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    } else {
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({
+            code: "UNAUTHORIZED",
+            message: "Missing authorization header",
+          } as ErrorResponse),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      if (!supabaseAnonKey) {
+        console.error("Missing SUPABASE_ANON_KEY environment variable");
+        return new Response(
+          JSON.stringify({
+            code: "INTERNAL_ERROR",
+            message: "Server configuration error",
+          } as ErrorResponse),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // External mode: use anon key and forward Authorization header.
+      // RLS policies will enforce per-user access; no manual JWT parsing needed.
+      supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: {
+          headers: {
+            Authorization: authHeader,
+          },
         },
-      );
+      });
     }
 
     let requestBody: ProcessMomentRequest;
@@ -392,11 +402,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     // Fetch memory data from database
+    // For internal mode: service role can access any memory.
+    // For external mode: RLS policies enforce that the caller can only access their own memories.
     const { data: memory, error: memoryError } = await supabaseClient
       .from("memories")
       .select("id, input_text, memory_type")
       .eq("id", requestBody.memoryId)
-      .eq("user_id", user.id)
       .single();
 
     if (memoryError || !memory) {
@@ -518,7 +529,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.log(
         JSON.stringify({
           event: "moment_processing",
-          userId: user.id,
           memoryId: requestBody.memoryId,
           titleLength: title.length,
           processedTextLength: processedText.length,
@@ -526,6 +536,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           durationMs: duration,
           requestId: requestId,
           timestamp: completedAt,
+          mode: isInternalTrigger ? "internal" : "external",
         }),
       );
 
@@ -581,6 +592,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           headers: { "Content-Type": "application/json" },
         },
       );
+    }
   } catch (error) {
     console.error("Unexpected error in process-moment function:", error);
 

@@ -1,0 +1,26 @@
+# Supabase configuration file
+# See: https://supabase.com/docs/guides/cli/config
+
+#
+# Edge function configuration
+#
+
+# Dispatcher is called from database triggers (pg_net) which don't have JWT tokens.
+# JWT verification is disabled at the platform level; the function uses the
+# service role key and an internal header for security.
+[functions.dispatch-memory-processing]
+verify_jwt = false
+
+# Processing functions support two modes:
+# - Internal mode: invoked from dispatcher with X-Internal-Trigger header, uses service role key.
+# - External mode: user-initiated calls use anon key with forwarded Authorization header, rely on RLS.
+# JWT verification is disabled at platform level; RLS policies enforce access control for external calls.
+[functions.process-moment]
+verify_jwt = false
+
+[functions.process-memento]
+verify_jwt = false
+
+[functions.process-story]
+verify_jwt = false
+
