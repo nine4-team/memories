@@ -11,10 +11,10 @@ import 'package:memories/providers/capture_state_provider.dart';
 import 'package:memories/providers/media_picker_provider.dart';
 import 'package:memories/providers/memory_detail_provider.dart';
 import 'package:memories/providers/memory_timeline_update_bus_provider.dart';
+import 'package:memories/providers/main_navigation_provider.dart';
 import 'package:memories/services/memory_save_service.dart';
 import 'package:memories/services/offline_memory_queue_service.dart';
 import 'package:memories/services/media_picker_service.dart';
-import 'package:memories/screens/memory/memory_detail_screen.dart';
 import 'package:memories/utils/platform_utils.dart';
 import 'package:memories/widgets/media_tray.dart';
 import 'package:memories/widgets/inspirational_quote.dart';
@@ -334,7 +334,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
 
       // Step 3: Save or update memory with progress updates (or queue if offline)
       final saveService = ref.read(memorySaveServiceProvider);
-      MemorySaveResult? result;
       // Use originalEditingMemoryId as a safety net so that edits never
       // silently fall back to creating a new memory row.
       final effectiveEditingMemoryId =
@@ -372,7 +371,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
           // Update existing memory
           debugPrint(
               '[CaptureScreen] Updating existing memory: $effectiveEditingMemoryId');
-          result = await saveService.updateMemory(
+          await saveService.updateMemory(
             memoryId: effectiveEditingMemoryId,
             state: finalState,
             memoryLocationDataMap: memoryLocationDataMap,
@@ -380,7 +379,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
         } else {
           // Create new memory
           debugPrint('[CaptureScreen] Creating new memory');
-          result = await saveService.saveMemory(
+          await saveService.saveMemory(
             state: finalState,
             memoryLocationDataMap: memoryLocationDataMap,
           );
@@ -433,8 +432,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
         return;
       }
 
-      final MemorySaveResult resolvedResult = result;
-
       // Step 4: Show success checkmark and navigate appropriately
       if (mounted) {
         // Show success checkmark briefly before navigation
@@ -475,21 +472,13 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
             // Refresh detail screen to show updated content
             ref.read(memoryDetailNotifierProvider(memoryId).notifier).refresh();
           } else {
-            // When creating, navigate to detail view
+            // When creating, navigate to timeline
             // Only pop if there's a route to pop (i.e., if this screen was pushed)
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             }
-            // Navigate to memory detail view
-            final savedMemoryId = resolvedResult.memoryId;
-            if (savedMemoryId.isNotEmpty) {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) =>
-                      MemoryDetailScreen(memoryId: savedMemoryId),
-                ),
-              );
-            }
+            // Switch to timeline tab
+            ref.read(mainNavigationTabNotifierProvider.notifier).switchToTimeline();
           }
         }
       }
