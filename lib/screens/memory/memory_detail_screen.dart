@@ -20,6 +20,7 @@ import 'package:memories/providers/timeline_image_cache_provider.dart';
 import 'package:memories/widgets/media_strip.dart';
 import 'package:memories/widgets/media_preview.dart';
 import 'package:memories/widgets/memory_metadata_section.dart';
+import 'package:memories/widgets/memory_title_with_processing.dart';
 import 'package:memories/widgets/rich_text_content.dart';
 import 'package:memories/widgets/sticky_audio_player.dart';
 
@@ -1473,16 +1474,25 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
     }
 
     // If not editing, show title with edit icon button right next to it
-    return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 8,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          memory.displayTitle,
-          style: theme.textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+        Expanded(
+          child: MemoryTitleWithProcessing.detail(
+            memory: memory,
+            isOfflineQueued: widget.isOfflineQueued,
+            offlineSyncStatus: widget.isOfflineQueued
+                ? OfflineSyncStatus.queued
+                : OfflineSyncStatus.synced,
+            serverIdOverride: widget.isOfflineQueued ? null : memory.id,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
+        const SizedBox(width: 8),
         Semantics(
           label: 'Edit title',
           button: true,

@@ -6,6 +6,9 @@ part 'memory_timeline_update_bus_provider.g.dart';
 
 /// Event types for memory timeline updates
 enum MemoryTimelineEventType {
+  /// Memory was created on the server
+  created,
+
   /// Memory was updated on the server
   updated,
 
@@ -20,6 +23,9 @@ class MemoryTimelineEvent {
 
   /// The ID of the memory that was updated or deleted
   final String memoryId;
+
+  /// Create a created event
+  MemoryTimelineEvent.created(this.memoryId) : type = MemoryTimelineEventType.created;
 
   /// Create an updated event
   MemoryTimelineEvent.updated(this.memoryId) : type = MemoryTimelineEventType.updated;
@@ -43,6 +49,12 @@ class MemoryTimelineUpdateBus {
 
   /// Stream of memory timeline events
   Stream<MemoryTimelineEvent> get stream => _controller.stream;
+
+  /// Emit a created event for a memory
+  void emitCreated(String memoryId) {
+    debugPrint('[MemoryTimelineUpdateBus] Emitting created event for memory: $memoryId');
+    _controller.add(MemoryTimelineEvent.created(memoryId));
+  }
 
   /// Emit an updated event for a memory
   void emitUpdated(String memoryId) {

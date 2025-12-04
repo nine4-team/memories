@@ -3,29 +3,182 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:memories/providers/supabase_provider.dart';
 import 'package:memories/providers/auth_state_provider.dart';
+import 'package:memories/providers/biometric_provider.dart';
 import 'package:memories/services/logout_service.dart';
+import 'package:memories/services/auth_error_handler.dart';
 import 'package:memories/widgets/profile_edit_form.dart';
 import 'package:memories/widgets/password_change_widget.dart';
 import 'package:memories/widgets/user_info_display.dart';
-import 'package:memories/screens/settings/security_settings_screen.dart';
 import 'package:memories/screens/settings/account_deletion_flow.dart';
 
 /// Screen for managing user settings and profile
 /// 
 /// Provides:
 /// - Account section: Profile editing, user info display
-/// - Security section: Password change, security settings
+/// - Security section: Password change, biometric authentication
 /// - Support section: Placeholder links
-/// - Logout functionality
-class SettingsScreen extends StatelessWidget {
+/// - Sign out functionality in AppBar
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
-  void _navigateToSecuritySettings(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const SecuritySettingsScreen(),
-      ),
-    );
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _isLoadingBiometric = false;
+  bool? _biometricEnabled;
+  bool? _biometricAvailable;
+  String? _biometricTypeName;
+  String? _biometricErrorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBiometricSettings();
+  }
+
+  Future<void> _loadBiometricSettings() async {
+    if (!mounted) return;
+    final container = ProviderScope.containerOf(context);
+    final secureStorage = container.read(secureStorageServiceProvider);
+    final biometricService = container.read(biometricServiceProvider);
+    final supabase = container.read(supabaseClientProvider);
+
+    try {
+      // Check if biometrics are available
+      final available = await biometricService.isAvailable();
+      final typeName = available
+          ? await biometricService.getAvailableBiometricTypeName()
+          : null;
+
+      // Check current enabled state from secure storage
+      final enabled = await secureStorage.isBiometricEnabled();
+
+      // Also check from Supabase profile for consistency
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        try {
+          final profileResponse = await supabase
+              .from('profiles')
+              .select('biometric_enabled')
+              .eq('id', user.id)
+              .single();
+
+          final profileEnabled =
+              profileResponse['biometric_enabled'] as bool? ?? false;
+
+          // Sync: if profile says enabled but secure storage doesn't, update secure storage
+          if (profileEnabled && !enabled) {
+            await secureStorage.setBiometricEnabled(true);
+          }
+
+          if (mounted) {
+            setState(() {
+              _biometricEnabled = profileEnabled;
+              _biometricAvailable = available;
+              _biometricTypeName = typeName;
+            });
+          }
+          return;
+        } catch (e) {
+          // If profile fetch fails, use secure storage value
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _biometricEnabled = enabled;
+          _biometricAvailable = available;
+          _biometricTypeName = typeName;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _biometricErrorMessage = 'Failed to load biometric settings';
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleBiometric(bool enabled) async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingBiometric = true;
+      _biometricErrorMessage = null;
+    });
+
+    try {
+      final container = ProviderScope.containerOf(context);
+      final secureStorage = container.read(secureStorageServiceProvider);
+      final biometricService = container.read(biometricServiceProvider);
+      final supabase = container.read(supabaseClientProvider);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _biometricErrorMessage = 'You must be signed in to change this setting';
+            _isLoadingBiometric = false;
+          });
+        }
+        return;
+      }
+
+      if (enabled) {
+        // Enable biometrics: authenticate first, then update settings
+        final authenticated = await biometricService.authenticate(
+          reason:
+              'Enable ${_biometricTypeName ?? 'biometric authentication'} for quick access',
+        );
+
+        if (!authenticated) {
+          if (mounted) {
+            setState(() {
+              _biometricErrorMessage =
+                  'Biometric authentication failed. Please try again.';
+              _isLoadingBiometric = false;
+              _biometricEnabled = false;
+            });
+          }
+          return;
+        }
+
+        // Update Supabase profile
+        await supabase
+            .from('profiles')
+            .update({'biometric_enabled': true}).eq('id', user.id);
+
+        // Update secure storage
+        await secureStorage.setBiometricEnabled(true);
+      } else {
+        // Disable biometrics: clear secure storage and update profile
+        await secureStorage.clearBiometricPreference();
+        await secureStorage.clearSession(); // Clear session as per requirements
+
+        // Update Supabase profile
+        await supabase
+            .from('profiles')
+            .update({'biometric_enabled': false}).eq('id', user.id);
+      }
+
+      if (mounted) {
+        setState(() {
+          _biometricEnabled = enabled;
+          _isLoadingBiometric = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        final container = ProviderScope.containerOf(context);
+        final errorHandler = container.read(authErrorHandlerProvider);
+        setState(() {
+          _biometricErrorMessage = errorHandler.handleAuthError(e);
+          _isLoadingBiometric = false;
+        });
+      }
+    }
   }
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -51,6 +204,8 @@ class SettingsScreen extends StatelessWidget {
     if (confirmed != true) {
       return;
     }
+
+    if (!context.mounted) return;
 
     try {
       final container = ProviderScope.containerOf(context);
@@ -80,6 +235,13 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign Out',
+            onPressed: () => _handleLogout(context),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -126,18 +288,72 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               
-              // Security Settings Link
-              Semantics(
-                label: 'Navigate to security settings',
-                button: true,
-                child: ListTile(
-                  leading: const Icon(Icons.security),
-                  title: const Text('Security Settings'),
-                  subtitle: const Text('Manage biometric authentication'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _navigateToSecuritySettings(context),
+              // Biometric authentication inline
+              if (_biometricErrorMessage != null)
+                Semantics(
+                  label: 'Error message',
+                  liveRegion: true,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _biometricErrorMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              
+              if (_biometricAvailable == null)
+                const Center(child: CircularProgressIndicator())
+              else if (!_biometricAvailable!)
+                Semantics(
+                  label: 'Biometric authentication not available',
+                  child: Text(
+                    'Biometric authentication is not available on this device.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                )
+              else
+                Semantics(
+                  label: 'Biometric authentication toggle',
+                  child: SwitchListTile(
+                    title: Text(
+                      'Enable ${_biometricTypeName ?? 'Biometric'} Authentication',
+                    ),
+                    subtitle: Text(
+                      'Use ${_biometricTypeName ?? 'biometric authentication'} to quickly and securely sign in',
+                    ),
+                    value: _biometricEnabled ?? false,
+                    onChanged: _isLoadingBiometric
+                        ? null
+                        : (value) => _toggleBiometric(value),
+                    secondary: Icon(
+                      _biometricTypeName?.toLowerCase().contains('face') ?? false
+                          ? Icons.face
+                          : Icons.fingerprint,
+                    ),
+                  ),
+                ),
+              
+              if (_isLoadingBiometric)
+                const Padding(
+                  padding: EdgeInsets.only(left: 16, top: 8),
+                  child: SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              
               const SizedBox(height: 16),
               
               // Password Change
@@ -253,26 +469,6 @@ class SettingsScreen extends StatelessWidget {
                       side: BorderSide(
                         color: Theme.of(context).colorScheme.error,
                       ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              
-              // Logout Button
-              Semantics(
-                label: 'Sign out button',
-                button: true,
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _handleLogout(context),
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Sign Out'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      minimumSize: const Size(0, 48),
-                      foregroundColor: Theme.of(context).colorScheme.error,
                     ),
                   ),
                 ),

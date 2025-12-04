@@ -135,10 +135,46 @@ class UnifiedFeedController extends _$UnifiedFeedController {
     final syncService = ref.read(memorySyncServiceProvider);
 
     _syncSub?.cancel();
-    _syncSub = syncService.syncCompleteStream.listen((event) {
-      _removeQueuedEntry(event.localId);
-      // We do NOT immediately re-fetch the feed here; the server-backed
-      // version will naturally appear on next pagination/refresh.
+    _syncSub = syncService.syncCompleteStream.listen((event) async {
+      // Immediately fetch the server-backed memory and replace queued entry
+      // This ensures processing status becomes available immediately
+      try {
+        final connectivityService = ref.read(connectivityServiceProvider);
+        final isOnline = await connectivityService.isOnline();
+        
+        if (isOnline && (state.state == UnifiedFeedState.ready ||
+            state.state == UnifiedFeedState.empty)) {
+          final repository = ref.read(unifiedFeedRepositoryProvider);
+          final serverBackedMemory = await repository.fetchMemoryById(event.serverId);
+          
+          if (serverBackedMemory != null) {
+            // Find and replace the queued entry with server-backed version
+            final memoryIndex = state.memories.indexWhere((m) =>
+                m.isOfflineQueued && m.localId == event.localId);
+            
+            if (memoryIndex != -1) {
+              final updatedMemories = List<TimelineMemory>.from(state.memories);
+              updatedMemories[memoryIndex] = serverBackedMemory;
+              state = state.copyWith(memories: updatedMemories);
+              debugPrint(
+                  '[UnifiedFeedController] Replaced queued memory ${event.localId} with server-backed version ${event.serverId} at index $memoryIndex');
+            } else {
+              // Queued entry not in current feed, just remove it
+              _removeQueuedEntry(event.localId);
+            }
+          } else {
+            // Server-backed memory not found, remove queued entry
+            _removeQueuedEntry(event.localId);
+          }
+        } else {
+          // Offline or feed not ready, just remove queued entry
+          _removeQueuedEntry(event.localId);
+        }
+      } catch (e) {
+        debugPrint('[UnifiedFeedController] Error handling sync complete: $e');
+        // Fallback: remove queued entry
+        _removeQueuedEntry(event.localId);
+      }
     });
   }
 
@@ -162,6 +198,54 @@ class UnifiedFeedController extends _$UnifiedFeedController {
 
   Future<void> _handleTimelineUpdateEvent(MemoryTimelineEvent event) async {
     switch (event.type) {
+      case MemoryTimelineEventType.created:
+        // Fetch the newly created memory and prepend it to the feed
+        debugPrint(
+            '[UnifiedFeedController] Handling created event for memory: ${event.memoryId}');
+        try {
+          final connectivityService = ref.read(connectivityServiceProvider);
+          final isOnline = await connectivityService.isOnline();
+          
+          if (state.state == UnifiedFeedState.ready ||
+              state.state == UnifiedFeedState.empty) {
+            if (isOnline) {
+              // Online: Fetch the specific memory by ID and prepend to feed
+              final repository = ref.read(unifiedFeedRepositoryProvider);
+              final newMemory = await repository.fetchMemoryById(event.memoryId);
+              
+              if (newMemory != null) {
+                // Check if memory already exists in feed (dedupe)
+                final existingIndex = state.memories.indexWhere((m) =>
+                    m.id == event.memoryId ||
+                    m.serverId == event.memoryId ||
+                    m.localId == event.memoryId);
+                
+                if (existingIndex == -1) {
+                  // Prepend new memory to the top of the feed
+                  final updatedMemories = [newMemory, ...state.memories];
+                  state = state.copyWith(memories: updatedMemories);
+                  debugPrint(
+                      '[UnifiedFeedController] Prepended new memory ${event.memoryId} to feed');
+                } else {
+                  // Memory already exists, update it in-place
+                  final updatedMemories = List<TimelineMemory>.from(state.memories);
+                  updatedMemories[existingIndex] = newMemory;
+                  state = state.copyWith(memories: updatedMemories);
+                  debugPrint(
+                      '[UnifiedFeedController] Updated existing memory ${event.memoryId} in-place at index $existingIndex');
+                }
+              } else {
+                debugPrint(
+                    '[UnifiedFeedController] Created memory ${event.memoryId} not found in repository');
+              }
+            }
+            // If offline, do not attempt network fetch; rely on existing offline queue flow
+          }
+        } catch (e) {
+          debugPrint(
+              '[UnifiedFeedController] Error handling created memory: $e');
+        }
+        break;
       case MemoryTimelineEventType.updated:
         // Fetch the updated memory and update it in-place for deterministic refresh
         debugPrint(
@@ -277,7 +361,7 @@ class UnifiedFeedController extends _$UnifiedFeedController {
     debugPrint('[UnifiedFeedController] Realtime subscription set up for user $userId');
   }
 
-  void _handleMemoryUpdate(PostgresChangePayload payload) {
+  Future<void> _handleMemoryUpdate(PostgresChangePayload payload) async {
     try {
       final oldRecord = payload.oldRecord as Map<String, dynamic>?;
       final newRecord = payload.newRecord as Map<String, dynamic>?;
@@ -303,13 +387,51 @@ class UnifiedFeedController extends _$UnifiedFeedController {
 
       debugPrint('[UnifiedFeedController] Memory updated via realtime: $memoryId');
 
-      // Remove the old entry - it will be refreshed on next fetch/refresh
-      // This ensures the timeline shows updated data without needing manual refresh
-      removeMemory(memoryId);
-
-      // Optionally refresh the feed to get the updated version immediately
-      // For now, we'll just remove it and let it appear on next pagination/refresh
-      // This is more efficient than immediately refetching
+      // Fetch the updated memory and update it in-place for immediate refresh
+      try {
+        final connectivityService = ref.read(connectivityServiceProvider);
+        final isOnline = await connectivityService.isOnline();
+        
+        if (isOnline && (state.state == UnifiedFeedState.ready ||
+            state.state == UnifiedFeedState.empty)) {
+          final repository = ref.read(unifiedFeedRepositoryProvider);
+          final updatedMemory = await repository.fetchMemoryById(memoryId);
+          
+          if (updatedMemory != null) {
+            // Update the memory in-place if it exists in the current feed
+            final memoryIndex = state.memories.indexWhere((m) =>
+                m.id == memoryId ||
+                m.serverId == memoryId ||
+                m.localId == memoryId);
+            
+            if (memoryIndex != -1) {
+              // Replace the existing memory with the updated one
+              final updatedMemories = List<TimelineMemory>.from(state.memories);
+              updatedMemories[memoryIndex] = updatedMemory;
+              state = state.copyWith(memories: updatedMemories);
+              debugPrint(
+                  '[UnifiedFeedController] Updated memory $memoryId in-place via realtime at index $memoryIndex');
+            } else {
+              // Memory not in current feed, remove it (it may appear on pagination)
+              removeMemory(memoryId);
+              debugPrint(
+                  '[UnifiedFeedController] Updated memory $memoryId not in current feed, removed from view');
+            }
+          } else {
+            // Memory not found (may have been deleted or filtered out)
+            removeMemory(memoryId);
+            debugPrint(
+                '[UnifiedFeedController] Updated memory $memoryId not found in repository');
+          }
+        } else {
+          // Offline or feed not ready, just remove the old entry
+          removeMemory(memoryId);
+        }
+      } catch (e) {
+        debugPrint('[UnifiedFeedController] Error handling realtime memory update: $e');
+        // Fallback: remove the old entry
+        removeMemory(memoryId);
+      }
     } catch (e) {
       debugPrint('[UnifiedFeedController] Error handling memory update: $e');
     }

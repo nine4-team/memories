@@ -379,10 +379,13 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
         } else {
           // Create new memory
           debugPrint('[CaptureScreen] Creating new memory');
-          await saveService.saveMemory(
+          final result = await saveService.saveMemory(
             state: finalState,
             memoryLocationDataMap: memoryLocationDataMap,
           );
+          // Emit created event for online saves so timeline can immediately display the new memory
+          final bus = ref.read(memoryTimelineUpdateBusProvider);
+          bus.emitCreated(result.memoryId);
         }
       } on OfflineException {
         final queueService = ref.read(offlineMemoryQueueServiceProvider);
@@ -473,6 +476,8 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
             ref.read(memoryDetailNotifierProvider(memoryId).notifier).refresh();
           } else {
             // When creating, navigate to timeline
+            // Dismiss keyboard before navigation
+            FocusScope.of(context).unfocus();
             // Only pop if there's a route to pop (i.e., if this screen was pushed)
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();

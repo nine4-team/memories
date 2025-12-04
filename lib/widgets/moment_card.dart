@@ -4,11 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/models/memory_type.dart';
-import 'package:memories/models/memory_processing_status.dart';
 import 'package:memories/providers/supabase_provider.dart';
 import 'package:memories/providers/timeline_image_cache_provider.dart';
-import 'package:memories/providers/memory_processing_status_provider.dart';
 import 'package:memories/services/timeline_image_cache_service.dart';
+import 'package:memories/widgets/memory_title_with_processing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Reusable card widget for displaying a Moment in the timeline
@@ -135,17 +134,11 @@ class MomentCard extends ConsumerWidget {
   ) {
     final badges = <Widget>[];
 
-    if (isQueuedOffline) {
-      badges.add(_buildSyncStatusChip(context));
-    }
-
+    // Note: Processing and sync status indicators are now shown in the title area
+    // via MemoryTitleWithProcessing widget. Footer badges are deprecated for these.
+    // Only show "Not available offline" chip if needed.
     if (isPreviewOnlyOffline) {
       badges.add(_buildPreviewOnlyChip(context));
-    }
-
-    // Show processing indicator for server-backed memories that are still processing
-    if (!isQueuedOffline && moment.serverId != null) {
-      badges.add(_buildProcessingIndicator(context));
     }
 
     if (badges.isEmpty) return const SizedBox.shrink();
@@ -160,122 +153,6 @@ class MomentCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildProcessingIndicator(BuildContext context) {
-    // Only show for server-backed memories
-    if (moment.serverId == null) return const SizedBox.shrink();
-
-    return Consumer(
-      builder: (context, ref, child) {
-        final statusAsync = ref.watch(
-          memoryProcessingStatusStreamProvider(moment.serverId!),
-        );
-
-        return statusAsync.when(
-          data: (status) {
-            if (status == null) {
-              return const SizedBox.shrink();
-            }
-
-            // Map processing state to user-facing badge label.
-            String? label;
-            switch (status.state) {
-              case MemoryProcessingState.scheduled:
-                label = 'Scheduled for processing';
-                break;
-              case MemoryProcessingState.processing:
-                label = 'Processing';
-                break;
-              case MemoryProcessingState.complete:
-              case MemoryProcessingState.failed:
-                // No badge for completed/failed on the timeline card today.
-                label = null;
-                break;
-            }
-
-            if (label == null) {
-              return const SizedBox.shrink();
-            }
-
-            // Show a subtle processing/scheduled indicator
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 10,
-                    height: 10,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Colors.blue.shade700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.blue.shade800,
-                          fontSize: 10,
-                        ),
-                  ),
-                ],
-              ),
-            );
-          },
-          loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
-        );
-      },
-    );
-  }
-
-  Widget _buildSyncStatusChip(BuildContext context) {
-    final status = moment.offlineSyncStatus;
-    Color bg;
-    Color fg;
-    String label;
-
-    switch (status) {
-      case OfflineSyncStatus.queued:
-        bg = Colors.orange.shade50;
-        fg = Colors.orange.shade800;
-        label = 'Pending sync';
-        break;
-      case OfflineSyncStatus.syncing:
-        bg = Colors.blue.shade50;
-        fg = Colors.blue.shade800;
-        label = 'Syncing…';
-        break;
-      case OfflineSyncStatus.failed:
-        bg = Colors.red.shade50;
-        fg = Colors.red.shade800;
-        label = 'Sync failed';
-        break;
-      case OfflineSyncStatus.synced:
-        bg = Colors.green.shade50;
-        fg = Colors.green.shade800;
-        label = 'Synced';
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: fg),
-      ),
-    );
-  }
 
   Widget _buildPreviewOnlyChip(BuildContext context) {
     return Container(
@@ -614,9 +491,9 @@ class MomentCard extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Title - use textTheme to respect system text scaling
-        Text(
-          moment.displayTitle,
+        // Title with processing indicator
+        MemoryTitleWithProcessing.timeline(
+          memory: moment,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
           ),

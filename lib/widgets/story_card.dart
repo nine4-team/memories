@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:memories/models/timeline_memory.dart';
 import 'package:memories/models/memory_type.dart';
+import 'package:memories/widgets/memory_title_with_processing.dart';
 
 /// Reusable card widget for displaying a Story in the timeline
 /// 
@@ -125,10 +126,9 @@ class StoryCard extends ConsumerWidget {
   ) {
     final badges = <Widget>[];
 
-    if (isQueuedOffline) {
-      badges.add(_buildSyncStatusChip(context));
-    }
-
+    // Note: Processing and sync status indicators are now shown in the title area
+    // via MemoryTitleWithProcessing widget. Footer badges are deprecated for these.
+    // Only show "Not available offline" chip if needed.
     if (isPreviewOnlyOffline) {
       badges.add(_buildPreviewOnlyChip(context));
     }
@@ -142,48 +142,6 @@ class StoryCard extends ConsumerWidget {
               child: b,
             )),
       ],
-    );
-  }
-
-  Widget _buildSyncStatusChip(BuildContext context) {
-    final status = story.offlineSyncStatus;
-    Color bg;
-    Color fg;
-    String label;
-
-    switch (status) {
-      case OfflineSyncStatus.queued:
-        bg = Colors.orange.shade50;
-        fg = Colors.orange.shade800;
-        label = 'Pending sync';
-        break;
-      case OfflineSyncStatus.syncing:
-        bg = Colors.blue.shade50;
-        fg = Colors.blue.shade800;
-        label = 'Syncing…';
-        break;
-      case OfflineSyncStatus.failed:
-        bg = Colors.red.shade50;
-        fg = Colors.red.shade800;
-        label = 'Sync failed';
-        break;
-      case OfflineSyncStatus.synced:
-        bg = Colors.green.shade50;
-        fg = Colors.green.shade800;
-        label = 'Synced';
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: fg),
-      ),
     );
   }
 
@@ -241,9 +199,9 @@ class StoryCard extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Title - single line, ellipsized
-        Text(
-          story.displayTitle,
+        // Title with processing indicator
+        MemoryTitleWithProcessing.timeline(
+          memory: story,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
           ),
