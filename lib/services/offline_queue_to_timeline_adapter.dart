@@ -19,9 +19,10 @@ class OfflineQueueToTimelineAdapter {
     // Map queue status to OfflineSyncStatus
     final offlineSyncStatus = _mapStatusToOfflineSyncStatus(queued.status);
 
-    // Generate title/snippet from inputText
-    final title =
-        _generateTitleFromInputText(queued.inputText, queued.memoryType);
+    // Prefer curated title, fall back to a generated one from input text
+    final title = (queued.title != null && queued.title!.trim().isNotEmpty)
+        ? queued.title!.trim()
+        : _generateTitleFromInputText(queued.inputText, queued.memoryType);
     final snippet = _generateSnippetFromInputText(queued.inputText);
 
     // Use memoryDate if available, otherwise fall back to capturedAt

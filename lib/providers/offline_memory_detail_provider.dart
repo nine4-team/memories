@@ -99,9 +99,10 @@ class OfflineMemoryDetailNotifier extends _$OfflineMemoryDetailNotifier {
       );
     }
 
-    // Generate title from input text if needed
-    final title =
-        _generateTitleFromInputText(queued.inputText, queued.memoryType);
+    // Prefer curated title, fall back to generated from input text
+    final title = (queued.title != null && queued.title!.trim().isNotEmpty)
+        ? queued.title!.trim()
+        : _generateTitleFromInputText(queued.inputText, queued.memoryType);
 
     // For stories, convert local audio path to file:// URL format
     String? audioPath;

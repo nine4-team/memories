@@ -183,6 +183,7 @@ class MemoryDetailService {
           'input_text': memory.inputText,
           'processed_text': memory.processedText,
           'generated_title': memory.generatedTitle,
+          'title_generated_at': memory.titleGeneratedAt?.toIso8601String(),
           'tags': memory.tags,
           'memory_type': memory.memoryType,
           'captured_at': memory.capturedAt.toIso8601String(),

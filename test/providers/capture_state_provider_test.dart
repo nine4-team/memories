@@ -42,7 +42,8 @@ void main() {
       when(() => mockDictationService.status).thenReturn(DictationStatus.idle);
       when(() => mockDictationService.errorMessage).thenReturn(null);
       when(() => mockDictationService.start()).thenAnswer((_) async => true);
-      when(() => mockDictationService.stop()).thenAnswer((_) async => DictationStopResult(transcript: ''));
+      when(() => mockDictationService.stop())
+          .thenAnswer((_) async => DictationStopResult(transcript: ''));
       when(() => mockDictationService.cancel()).thenAnswer((_) async {});
       when(() => mockDictationService.clear()).thenReturn(null);
       when(() => mockAudioCacheService.cleanupAudioFile(
@@ -71,7 +72,7 @@ void main() {
 
         // Setup initial state with session ID
         final notifier = container.read(captureStateNotifierProvider.notifier);
-        
+
         // Set up state by starting dictation first
         final statusController = StreamController<DictationStatus>();
         final transcriptController = StreamController<String>();
@@ -90,7 +91,7 @@ void main() {
 
         // Start dictation to set session ID
         await notifier.startDictation();
-        
+
         // Manually set session ID in state (simulating what startDictation does)
         // Note: In real code, startDictation sets this, but we need to simulate it for testing
         final currentState = container.read(captureStateNotifierProvider);
@@ -381,7 +382,8 @@ void main() {
         // Verify error was captured (may be null if stream hasn't processed yet)
         final state = container.read(captureStateNotifierProvider);
         // Error may be captured or may need more time - this tests the integration exists
-        expect(state.errorMessage, anyOf(isNull, equals('Microphone permission denied')));
+        expect(state.errorMessage,
+            anyOf(isNull, equals('Microphone permission denied')));
 
         errorController.close();
         statusController.close();
@@ -450,7 +452,8 @@ void main() {
       when(() => mockDictationService.status).thenReturn(DictationStatus.idle);
       when(() => mockDictationService.errorMessage).thenReturn(null);
       when(() => mockDictationService.start()).thenAnswer((_) async => true);
-      when(() => mockDictationService.stop()).thenAnswer((_) async => DictationStopResult(transcript: ''));
+      when(() => mockDictationService.stop())
+          .thenAnswer((_) async => DictationStopResult(transcript: ''));
       when(() => mockDictationService.cancel()).thenAnswer((_) async {});
       when(() => mockDictationService.clear()).thenReturn(null);
       when(() => mockAudioCacheService.cleanupAudioFile(
@@ -549,7 +552,9 @@ void main() {
       statusController.close();
     });
 
-    test('manual inputText edits persist and are not overwritten by empty transcript', () async {
+    test(
+        'manual inputText edits persist and are not overwritten by empty transcript',
+        () async {
       final notifier = container.read(captureStateNotifierProvider.notifier);
       const manualInputText = 'Manually edited input text';
 
@@ -627,6 +632,49 @@ void main() {
 
       // Note: We can't easily test audioPath in this test without more setup
       // but the validation logic is tested
+    });
+
+    group('Curated title management', () {
+      test('clears memoryTitle when null is set', () {
+        final notifier = container.read(captureStateNotifierProvider.notifier);
+
+        notifier.loadMemoryForEdit(
+          memoryId: 'memory-123',
+          captureType: MemoryType.moment.apiValue,
+          inputText: 'Existing description',
+          title: 'Original title',
+          tags: const [],
+        );
+
+        expect(
+          container.read(captureStateNotifierProvider).memoryTitle,
+          equals('Original title'),
+        );
+
+        notifier.setMemoryTitle(null);
+
+        final updatedState = container.read(captureStateNotifierProvider);
+        expect(updatedState.memoryTitle, isNull);
+        expect(updatedState.hasUnsavedChanges, isTrue);
+      });
+
+      test('treats whitespace-only titles as null', () {
+        final notifier = container.read(captureStateNotifierProvider.notifier);
+
+        notifier.loadMemoryForEdit(
+          memoryId: 'memory-456',
+          captureType: MemoryType.story.apiValue,
+          inputText: 'Story text',
+          title: 'Keep me',
+          tags: const [],
+        );
+
+        notifier.setMemoryTitle('   ');
+
+        final updatedState = container.read(captureStateNotifierProvider);
+        expect(updatedState.memoryTitle, isNull);
+        expect(updatedState.hasUnsavedChanges, isTrue);
+      });
     });
   });
 }

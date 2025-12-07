@@ -155,9 +155,9 @@ class _MemoryTitleWithProcessingState
     final isProcessing = status != null &&
         (status.state == MemoryProcessingState.scheduled ||
             status.state == MemoryProcessingState.processing);
-    final isFallbackTitle = _isFallbackTitle(descriptor.rawTitle);
+    final shouldShowSpinner = isProcessing && !descriptor.hasGeneratedTitle;
 
-    if (isProcessing && isFallbackTitle) {
+    if (shouldShowSpinner) {
       return _buildProcessingIndicator(context);
     }
 
@@ -182,8 +182,8 @@ class _MemoryTitleWithProcessingState
         Flexible(
           child: Text(
             'Generating title…',
-            style:
-                (widget.style ?? Theme.of(context).textTheme.titleMedium)?.copyWith(
+            style: (widget.style ?? Theme.of(context).textTheme.titleMedium)
+                ?.copyWith(
               color: Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.w600,
             ),
@@ -206,12 +206,6 @@ class _MemoryTitleWithProcessingState
       overflow: widget.overflow,
     );
   }
-
-  bool _isFallbackTitle(String title) {
-    return title == 'Untitled Moment' ||
-        title == 'Untitled Story' ||
-        title == 'Untitled Memento';
-  }
 }
 
 class MemoryTitleDescriptor {
@@ -219,6 +213,7 @@ class MemoryTitleDescriptor {
   final String displayTitle;
   final String? serverId;
   final bool isOfflineQueued;
+  final bool hasGeneratedTitle;
   final OfflineSyncStatus offlineSyncStatus;
 
   const MemoryTitleDescriptor({
@@ -227,6 +222,7 @@ class MemoryTitleDescriptor {
     required this.serverId,
     required this.isOfflineQueued,
     required this.offlineSyncStatus,
+    this.hasGeneratedTitle = false,
   });
 
   factory MemoryTitleDescriptor.fromTimelineMemory(TimelineMemory memory) {
@@ -236,6 +232,7 @@ class MemoryTitleDescriptor {
       serverId: memory.serverId,
       isOfflineQueued: memory.isOfflineQueued,
       offlineSyncStatus: memory.offlineSyncStatus,
+      hasGeneratedTitle: memory.hasGeneratedTitle,
     );
   }
 
@@ -251,10 +248,10 @@ class MemoryTitleDescriptor {
       serverId: serverIdOverride ?? memory.id,
       isOfflineQueued: isOfflineQueued,
       offlineSyncStatus: offlineSyncStatus,
+      hasGeneratedTitle: memory.hasGeneratedTitle,
     );
   }
 
   bool get shouldShowOfflineIndicator =>
       isOfflineQueued && offlineSyncStatus != OfflineSyncStatus.synced;
 }
-

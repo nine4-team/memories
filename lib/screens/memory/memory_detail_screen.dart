@@ -53,14 +53,6 @@ class MemoryDetailScreen extends ConsumerStatefulWidget {
 class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
   int? _selectedMediaIndex;
   bool _loggedMissingSelection = false;
-  bool _isEditingTitle = false;
-  final TextEditingController _titleController = TextEditingController();
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    super.dispose();
-  }
 
   void _ensureMediaSelection(MemoryDetail memory) {
     final totalMedia = memory.photos.length + memory.videos.length;
@@ -1335,12 +1327,14 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
   }
 
   /// Handle edit action for offline queued memories
-  void _handleEditOffline(
+  Future<void> _handleEditOffline(
     BuildContext context,
     WidgetRef ref,
     MemoryDetail detail,
-  ) {
+  ) async {
     final captureNotifier = ref.read(captureStateNotifierProvider.notifier);
+    final queueService = ref.read(offlineMemoryQueueServiceProvider);
+    final queuedMemory = await queueService.getByLocalId(detail.id);
 
     // Extract local file paths from file:// URLs
     final photoPaths =
@@ -1358,6 +1352,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
       localId: detail.id,
       memoryType: memoryType,
       inputText: detail.displayText,
+      title: queuedMemory?.title,
       tags: detail.tags,
       existingPhotoPaths: photoPaths,
       existingVideoPaths: videoPaths,
@@ -1402,6 +1397,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
       captureType: memory.memoryType,
       inputText:
           memory.displayText, // Use displayText to fall back to processed text
+      title: memory.title,
       tags: memory.tags,
       latitude: memory.locationData?.latitude,
       longitude: memory.locationData?.longitude,
@@ -1805,7 +1801,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
     );
   }
 
-  /// Build title widget - editable when edit icon is tapped
+  /// Build title widget
   Widget _buildTitleWidget(
     BuildContext context,
     WidgetRef ref,
@@ -1813,194 +1809,19 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
   ) {
     final theme = Theme.of(context);
 
-    // If editing, show TextField with save/cancel buttons
-    if (_isEditingTitle) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _titleController,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-            decoration: InputDecoration(
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-            ),
-            maxLength: 200,
-            autofocus: true,
-            onSubmitted: (value) {
-              _handleSaveTitle(context, ref, memory, value);
-            },
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () => _handleCancelTitleEdit(),
-                child: const Text('Cancel'),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () => _handleSaveTitle(
-                  context,
-                  ref,
-                  memory,
-                  _titleController.text,
-                ),
-                child: const Text('Save'),
-              ),
-            ],
-          ),
-        ],
-      );
-    }
-
-    // If not editing, show title with edit icon button right next to it
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: MemoryTitleWithProcessing.detail(
-            memory: memory,
-            isOfflineQueued: widget.isOfflineQueued,
-            offlineSyncStatus: widget.isOfflineQueued
-                ? OfflineSyncStatus.queued
-                : OfflineSyncStatus.synced,
-            serverIdOverride: widget.isOfflineQueued ? null : memory.id,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Semantics(
-          label: 'Edit title',
-          button: true,
-          child: InkWell(
-            onTap: () => _handleEditTitle(context, ref, memory),
-            borderRadius: BorderRadius.circular(4),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Icon(
-                Icons.edit,
-                size: 18,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Handle title editing - enter edit mode
-  Future<void> _handleEditTitle(
-    BuildContext context,
-    WidgetRef ref,
-    MemoryDetail memory,
-  ) async {
-    // Check if online (required for editing)
-    final connectivityService = ref.read(connectivityServiceProvider);
-    final isOnline = await connectivityService.isOnline();
-
-    if (!isOnline) {
-      _showOfflineTooltip(
-          context, 'Editing title requires internet connection');
-      return;
-    }
-
-    // Enter edit mode
-    setState(() {
-      _isEditingTitle = true;
-      // Initialize with current title (not displayTitle, as we want to edit the actual title field)
-      // If title is empty, use empty string (will fall back to generated_title or "Untitled..." after save)
-      _titleController.text = memory.title;
-    });
-  }
-
-  /// Handle saving title edit
-  Future<void> _handleSaveTitle(
-    BuildContext context,
-    WidgetRef ref,
-    MemoryDetail memory,
-    String newTitle,
-  ) async {
-    // Trim the title
-    final trimmedTitle = newTitle.trim();
-
-    // Show loading indicator
-    if (!context.mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    scaffoldMessenger.showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            SizedBox(width: 12),
-            Text('Updating title...'),
-          ],
-        ),
-        duration: Duration(seconds: 2),
+    return MemoryTitleWithProcessing.detail(
+      memory: memory,
+      isOfflineQueued: widget.isOfflineQueued,
+      offlineSyncStatus: widget.isOfflineQueued
+          ? OfflineSyncStatus.queued
+          : OfflineSyncStatus.synced,
+      serverIdOverride: widget.isOfflineQueued ? null : memory.id,
+      style: theme.textTheme.headlineMedium?.copyWith(
+        fontWeight: FontWeight.w600,
       ),
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
     );
-
-    try {
-      // Update via provider
-      final notifier =
-          ref.read(memoryDetailNotifierProvider(memory.id).notifier);
-      // Pass null if empty, otherwise pass trimmed title
-      await notifier.updateMemoryTitle(
-        trimmedTitle.isEmpty ? null : trimmedTitle,
-      );
-
-      // Exit edit mode
-      setState(() {
-        _isEditingTitle = false;
-      });
-
-      if (!context.mounted) return;
-      scaffoldMessenger.hideCurrentSnackBar();
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(
-          content: Text('Title updated'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      scaffoldMessenger.hideCurrentSnackBar();
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text('Failed to update title: ${e.toString()}'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
-
-  /// Handle canceling title edit
-  void _handleCancelTitleEdit() {
-    setState(() {
-      _isEditingTitle = false;
-      _titleController.clear();
-    });
   }
 
   /// Handle media removal with confirmation dialog

@@ -238,9 +238,14 @@ class MemorySaveService {
       onProgress?.call(message: 'Saving memory...', progress: 0.7);
       final now = DateTime.now().toUtc();
 
+      final customTitle = state.memoryTitle?.trim();
+      final hasCustomTitle =
+          customTitle != null && customTitle.isNotEmpty ? true : false;
+
       final momentData = {
         'user_id': _supabase.auth.currentUser?.id,
-        'title': null, // Will be updated after title generation (now nullable)
+        'title':
+            hasCustomTitle ? customTitle : null, // Set now if curated title
         'input_text': state.inputText, // Canonical raw user text
         'processed_text':
             null, // LLM-processed text - stays NULL until processing completes
@@ -366,13 +371,17 @@ class MemorySaveService {
         }
       }
 
-      // Use fallback title for now - will be updated when processing completes
-      generatedTitle = _getFallbackTitle(state.memoryType, state.inputText);
+      if (!hasCustomTitle) {
+        // Use fallback title for now - will be updated when processing completes
+        generatedTitle = _getFallbackTitle(state.memoryType, state.inputText);
 
-      // Set fallback title immediately
-      await _supabase.from('memories').update({
-        'title': generatedTitle,
-      }).eq('id', memoryId);
+        // Set fallback title immediately
+        await _supabase.from('memories').update({
+          'title': generatedTitle,
+        }).eq('id', memoryId);
+      } else {
+        generatedTitle = customTitle;
+      }
 
       onProgress?.call(message: 'Complete!', progress: 1.0);
 
@@ -672,6 +681,12 @@ class MemorySaveService {
       };
       if (inputTextChanged) {
         updateData['processed_text'] = null;
+      }
+
+      if (state.hasMemoryTitleChanged) {
+        final customTitle = state.memoryTitle?.trim();
+        updateData['title'] =
+            customTitle != null && customTitle.isNotEmpty ? customTitle : null;
       }
 
       // Add memory_date (required - use user-specified or fall back to now)

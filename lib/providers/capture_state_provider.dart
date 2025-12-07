@@ -400,6 +400,23 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     );
   }
 
+  /// Update curated title (edit mode only)
+  void setMemoryTitle(String? title) {
+    final normalized = title?.trim();
+    final valueToStore =
+        normalized == null || normalized.isEmpty ? null : title;
+    final shouldClearTitle = valueToStore == null;
+    if (state.memoryTitle == valueToStore) {
+      return;
+    }
+
+    state = state.copyWith(
+      memoryTitle: valueToStore,
+      clearMemoryTitle: shouldClearTitle,
+      hasUnsavedChanges: true,
+    );
+  }
+
   /// Add photo path
   void addPhoto(String path) {
     if (!state.canAddPhoto) {
@@ -810,6 +827,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     required String memoryId,
     required String captureType,
     String? inputText,
+    String? title,
     List<String>? tags,
     double? latitude,
     double? longitude,
@@ -831,6 +849,8 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
       memoryType: memoryType,
       inputText: inputText,
       originalInputText: inputText,
+      memoryTitle: title?.isNotEmpty == true ? title : null,
+      originalMemoryTitle: title?.isNotEmpty == true ? title : null,
       tags: tags ?? [],
       latitude: latitude,
       longitude: longitude,
@@ -855,6 +875,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     required String localId,
     required MemoryType memoryType,
     required String? inputText,
+    String? title,
     required List<String> tags,
     required List<String> existingPhotoPaths,
     required List<String> existingVideoPaths,
@@ -871,6 +892,8 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
       memoryType: memoryType,
       inputText: inputText,
       originalInputText: inputText,
+      memoryTitle: title?.isNotEmpty == true ? title : null,
+      originalMemoryTitle: title?.isNotEmpty == true ? title : null,
       tags: tags,
       latitude: latitude,
       longitude: longitude,

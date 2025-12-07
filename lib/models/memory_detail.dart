@@ -18,6 +18,7 @@ class MemoryDetail {
   final String? inputText;
   final String? processedText;
   final String? generatedTitle;
+  final DateTime? titleGeneratedAt;
   final List<String> tags;
   final String memoryType;
   final DateTime capturedAt;
@@ -45,6 +46,7 @@ class MemoryDetail {
     this.inputText,
     this.processedText,
     this.generatedTitle,
+    this.titleGeneratedAt,
     required this.tags,
     required this.memoryType,
     required this.capturedAt,
@@ -86,6 +88,12 @@ class MemoryDetail {
     } else {
       return 'Untitled Moment';
     }
+  }
+
+  /// Whether a generated title exists for this memory
+  bool get hasGeneratedTitle {
+    return (generatedTitle != null && generatedTitle!.trim().isNotEmpty) ||
+        titleGeneratedAt != null;
   }
 
   /// Unified descriptive text getter - prefers processed_text, falls back to input_text
@@ -137,6 +145,9 @@ class MemoryDetail {
       inputText: json['input_text'] as String?,
       processedText: json['processed_text'] as String?,
       generatedTitle: json['generated_title'] as String?,
+      titleGeneratedAt: json['title_generated_at'] != null
+          ? DateTime.parse(json['title_generated_at'] as String)
+          : null,
       tags:
           (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
               [],

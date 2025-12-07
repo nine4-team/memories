@@ -16,6 +16,7 @@ class TimelineMemory {
   final String? inputText;
   final String? processedText;
   final String? generatedTitle;
+  final DateTime? titleGeneratedAt;
   final List<String> tags;
   final String memoryType;
   final DateTime capturedAt;
@@ -60,6 +61,7 @@ class TimelineMemory {
     this.inputText,
     this.processedText,
     this.generatedTitle,
+    this.titleGeneratedAt,
     required this.tags,
     required this.memoryType,
     required this.capturedAt,
@@ -110,6 +112,12 @@ class TimelineMemory {
     }
   }
 
+  /// Whether a generated title exists for this memory based on JSON metadata
+  bool get hasGeneratedTitle {
+    return (generatedTitle != null && generatedTitle!.trim().isNotEmpty) ||
+        titleGeneratedAt != null;
+  }
+
   /// Unified descriptive text getter - prefers processed_text, falls back to input_text
   String? get displayText {
     if (processedText != null && processedText!.trim().isNotEmpty) {
@@ -138,6 +146,7 @@ class TimelineMemory {
     String? inputText,
     String? processedText,
     String? generatedTitle,
+    DateTime? titleGeneratedAt,
     List<String>? tags,
     String? memoryType,
     DateTime? capturedAt,
@@ -166,6 +175,7 @@ class TimelineMemory {
       inputText: inputText ?? this.inputText,
       processedText: processedText ?? this.processedText,
       generatedTitle: generatedTitle ?? this.generatedTitle,
+      titleGeneratedAt: titleGeneratedAt ?? this.titleGeneratedAt,
       tags: tags ?? this.tags,
       memoryType: memoryType ?? this.memoryType,
       capturedAt: capturedAt ?? this.capturedAt,
@@ -207,6 +217,9 @@ class TimelineMemory {
       inputText: json['input_text'] as String?,
       processedText: json['processed_text'] as String?,
       generatedTitle: json['generated_title'] as String?,
+      titleGeneratedAt: json['title_generated_at'] != null
+          ? DateTime.parse(json['title_generated_at'] as String)
+          : null,
       tags:
           (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
               [],
@@ -252,6 +265,7 @@ class TimelineMemory {
       'input_text': inputText,
       'processed_text': processedText,
       'generated_title': generatedTitle,
+      'title_generated_at': titleGeneratedAt?.toIso8601String(),
       'tags': tags,
       'memory_type': memoryType,
       'captured_at': capturedAt.toIso8601String(),

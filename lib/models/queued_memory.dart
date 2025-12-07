@@ -26,6 +26,12 @@ class QueuedMemory {
   /// Input text from dictation or manual entry (canonical field)
   final String? inputText;
 
+  /// User-curated title (nullable; null means fall back to generated title).
+  final String? title;
+
+  /// Original curated title snapshot when the edit session started.
+  final String? originalTitle;
+
   /// Whether the input text changed compared to the original snapshot.
   /// Used to decide if NLP processing should be re-queued after sync.
   final bool inputTextChanged;
@@ -120,6 +126,8 @@ class QueuedMemory {
     required this.localId,
     required this.memoryType,
     this.inputText,
+    this.title,
+    this.originalTitle,
     this.audioPath,
     this.audioDuration,
     this.photoPaths = const [],
@@ -170,6 +178,8 @@ class QueuedMemory {
       localId: localId,
       memoryType: state.memoryType.apiValue,
       inputText: state.inputText,
+      title: state.memoryTitle,
+      originalTitle: state.originalMemoryTitle,
       audioPath: audioPath,
       audioDuration: audioDuration,
       photoPaths: List.from(state.photoPaths),
@@ -192,8 +202,7 @@ class QueuedMemory {
           List<String?>.from(state.existingVideoPosterUrls),
       deletedPhotoUrls: List.from(state.deletedPhotoUrls),
       deletedVideoUrls: List.from(state.deletedVideoUrls),
-      deletedVideoPosterUrls:
-          List<String?>.from(state.deletedVideoPosterUrls),
+      deletedVideoPosterUrls: List<String?>.from(state.deletedVideoPosterUrls),
       inputTextChanged: state.hasInputTextChanged,
     );
   }
@@ -213,6 +222,8 @@ class QueuedMemory {
       memoryType: _parseMemoryType(memoryType),
       inputText: inputText,
       originalInputText: inputText,
+      memoryTitle: title,
+      originalMemoryTitle: originalTitle,
       photoPaths: List.from(photoPaths),
       videoPaths: List.from(videoPaths),
       videoPosterPaths: List<String?>.from(videoPosterPaths),
@@ -229,12 +240,10 @@ class QueuedMemory {
       memoryLocationLongitude: memoryLocationLongitude,
       existingPhotoUrls: List.from(existingPhotoUrls),
       existingVideoUrls: List.from(existingVideoUrls),
-      existingVideoPosterUrls:
-          List<String?>.from(existingVideoPosterUrls),
+      existingVideoPosterUrls: List<String?>.from(existingVideoPosterUrls),
       deletedPhotoUrls: List.from(deletedPhotoUrls),
       deletedVideoUrls: List.from(deletedVideoUrls),
-      deletedVideoPosterUrls:
-          List<String?>.from(deletedVideoPosterUrls),
+      deletedVideoPosterUrls: List<String?>.from(deletedVideoPosterUrls),
       editingMemoryId: isUpdate ? targetMemoryId : null,
       originalEditingMemoryId: isUpdate ? targetMemoryId : null,
     );
@@ -312,6 +321,8 @@ class QueuedMemory {
       localId: localId,
       memoryType: state.memoryType.apiValue,
       inputText: state.inputText,
+      title: state.memoryTitle,
+      originalTitle: state.originalMemoryTitle,
       audioPath: preservedAudioPath,
       audioDuration: preservedAudioDuration,
       photoPaths: allPhotoPaths,
@@ -338,8 +349,7 @@ class QueuedMemory {
           List<String?>.from(state.existingVideoPosterUrls),
       deletedPhotoUrls: List.from(state.deletedPhotoUrls),
       deletedVideoUrls: List.from(state.deletedVideoUrls),
-      deletedVideoPosterUrls:
-          List<String?>.from(state.deletedVideoPosterUrls),
+      deletedVideoPosterUrls: List<String?>.from(state.deletedVideoPosterUrls),
       version: version,
       inputTextChanged: state.hasInputTextChanged,
     );
@@ -350,6 +360,8 @@ class QueuedMemory {
     String? localId,
     String? memoryType,
     String? inputText,
+    String? title,
+    String? originalTitle,
     bool? inputTextChanged,
     String? audioPath,
     double? audioDuration,
@@ -383,6 +395,8 @@ class QueuedMemory {
       localId: localId ?? this.localId,
       memoryType: memoryType ?? this.memoryType,
       inputText: inputText ?? this.inputText,
+      title: title ?? this.title,
+      originalTitle: originalTitle ?? this.originalTitle,
       audioPath: audioPath ?? this.audioPath,
       audioDuration: audioDuration ?? this.audioDuration,
       photoPaths: photoPaths ?? this.photoPaths,
@@ -440,6 +454,8 @@ class QueuedMemory {
       'localId': localId,
       'memoryType': memoryType,
       'inputText': inputText,
+      'title': title,
+      'originalTitle': originalTitle,
       'audioPath': audioPath,
       'audioDuration': audioDuration,
       'photoPaths': photoPaths,
@@ -479,6 +495,8 @@ class QueuedMemory {
       localId: json['localId'] as String,
       memoryType: json['memoryType'] as String,
       inputText: json['inputText'] as String?,
+      title: json['title'] as String?,
+      originalTitle: json['originalTitle'] as String?,
       audioPath: json['audioPath'] as String?,
       audioDuration: (json['audioDuration'] as num?)?.toDouble(),
       photoPaths: List<String>.from(json['photoPaths'] as List? ?? []),

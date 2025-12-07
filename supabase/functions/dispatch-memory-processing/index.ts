@@ -10,6 +10,115 @@ interface ErrorResponse {
 const MAX_ATTEMPTS = 3;
 const MAX_BATCH_SIZE = 10; // Process up to 10 memories per invocation
 
+type SupabaseClientInstance = ReturnType<typeof createClient>;
+
+interface ScheduledJob {
+  memory_id: string;
+  attempts?: number | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+interface MemorySnapshot {
+  memory_type: string | null;
+  title_generated_at: string | null;
+  generated_title: string | null;
+  processed_text: string | null;
+}
+
+async function fetchMemorySnapshot(
+  client: SupabaseClientInstance,
+  memoryId: string,
+): Promise<MemorySnapshot | null> {
+  const { data, error } = await client
+    .from("memories")
+    .select("memory_type, title_generated_at, generated_title, processed_text")
+    .eq("id", memoryId)
+    .single();
+
+  if (error || !data) {
+    console.error(JSON.stringify({
+      event: "memory_snapshot_fetch_failed",
+      memoryId,
+      error: error?.message ?? "Memory not found",
+    }));
+    return null;
+  }
+
+  return {
+    memory_type: (data.memory_type as string | null) ?? null,
+    title_generated_at: (data.title_generated_at as string | null) ?? null,
+    generated_title: (data.generated_title as string | null) ?? null,
+    processed_text: (data.processed_text as string | null) ?? null,
+  };
+}
+
+function hasCompletedOutputs(snapshot: MemorySnapshot | null): boolean {
+  if (!snapshot) return false;
+
+  const hasTitleMetadata = Boolean(
+    snapshot.title_generated_at ||
+      (snapshot.generated_title && snapshot.generated_title.trim().length > 0),
+  );
+
+  if (!hasTitleMetadata) {
+    return false;
+  }
+
+  if (snapshot.memory_type === "story") {
+    return Boolean(
+      snapshot.processed_text && snapshot.processed_text.trim().length > 0,
+    );
+  }
+
+  // Moments/Mementos are considered complete when title metadata exists.
+  return true;
+}
+
+async function autoCompleteJobIfPossible(
+  client: SupabaseClientInstance,
+  job: ScheduledJob,
+  snapshot: MemorySnapshot | null,
+): Promise<boolean> {
+  if (!hasCompletedOutputs(snapshot) || !snapshot) {
+    return false;
+  }
+
+  const completedAt = snapshot.title_generated_at ?? new Date().toISOString();
+  const metadata = {
+    ...(job.metadata ?? {}),
+    memory_type: snapshot.memory_type,
+    auto_completed: true,
+    auto_complete_reason: "output_already_present",
+  };
+
+  const { error } = await client
+    .from("memory_processing_status")
+    .update({
+      state: "complete",
+      completed_at: completedAt,
+      last_updated_at: completedAt,
+      metadata,
+    })
+    .eq("memory_id", job.memory_id);
+
+  if (error) {
+    console.error(JSON.stringify({
+      event: "memory_processing_auto_complete_failed",
+      memoryId: job.memory_id,
+      error: error.message,
+    }));
+    return false;
+  }
+
+  console.log(JSON.stringify({
+    event: "memory_processing_auto_completed",
+    memoryId: job.memory_id,
+    reason: "output_already_present",
+  }));
+
+  return true;
+}
+
 /**
  * Dispatcher Edge Function for Memory Processing
  * 
@@ -97,13 +206,61 @@ Deno.serve(async (req: Request): Promise<Response> => {
       let processedCount = 0;
       for (const job of jobs) {
         try {
+          const snapshot = await fetchMemorySnapshot(
+            supabaseClient,
+            job.memory_id,
+          );
+
+          if (!snapshot) {
+            const failedAt = new Date().toISOString();
+            await supabaseClient
+              .from("memory_processing_status")
+              .update({
+                state: "failed",
+                last_error: "Memory not found when dispatching",
+                last_error_at: failedAt,
+                last_updated_at: failedAt,
+              })
+              .eq("memory_id", job.memory_id);
+            continue;
+          }
+
+          const autoCompleted = await autoCompleteJobIfPossible(
+            supabaseClient,
+            job,
+            snapshot,
+          );
+
+          if (autoCompleted) {
+            processedCount++;
+            continue;
+          }
+
+          const memoryType = (job.metadata?.memory_type as string | undefined) ??
+            snapshot.memory_type ??
+            undefined;
+
+          if (!memoryType) {
+            console.error(
+              `Unable to determine memory type for ${job.memory_id}, skipping`,
+            );
+            continue;
+          }
+
+          const nowIso = new Date().toISOString();
+          const metadata = {
+            ...(job.metadata ?? {}),
+            memory_type: memoryType,
+          };
+
           // Update state to 'processing' atomically (only if still 'scheduled')
           const { error: updateError } = await supabaseClient
             .from("memory_processing_status")
             .update({
               state: "processing",
-              started_at: new Date().toISOString(),
-              last_updated_at: new Date().toISOString(),
+              started_at: nowIso,
+              last_updated_at: nowIso,
+              metadata,
             })
             .eq("memory_id", job.memory_id)
             .eq("state", "scheduled"); // Only update if still scheduled (prevents race conditions)
@@ -113,24 +270,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
             continue; // Skip this job, another dispatcher may have claimed it
           }
 
-          // Determine memory type from metadata or fetch from memories table
-          const memoryType = job.metadata?.memory_type;
-          if (!memoryType) {
-            // Fetch from memories table
-            const { data: memory } = await supabaseClient
-              .from("memories")
-              .select("memory_type")
-              .eq("id", job.memory_id)
-              .single();
-
-            if (!memory) {
-              console.error(`Memory ${job.memory_id} not found`);
-              continue;
-            }
-          }
-
           // Call appropriate processing function
-          const functionName = `process-${memoryType || job.metadata?.memory_type}`;
+          const functionName = `process-${memoryType}`;
           const functionUrl = `${supabaseUrl}/functions/v1/${functionName}`;
 
           // Call edge function (fire and forget - the function updates status itself)
@@ -138,13 +279,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              // Mark this as an internal, service-role invocation so the processing
-              // functions can bypass JWT checks and use the service role key.
-              // We rely on `verify_jwt = false` for these worker functions, so we do
-              // NOT send an Authorization header here. The workers themselves will
-              // create a Supabase client with the service-role key when they see
-              // `X-Internal-Trigger: true`.
+              // Mark this as an internal invocation so workers can bypass user JWT checks
+              // while still satisfying Supabase platform auth when verify_jwt is enabled.
               "X-Internal-Trigger": "true",
+              Authorization: `Bearer ${supabaseServiceKey}`,
             },
             body: JSON.stringify({
               memoryId: job.memory_id,

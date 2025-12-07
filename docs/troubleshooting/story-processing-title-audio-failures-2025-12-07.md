@@ -5,8 +5,21 @@
 - The newer code in `supabase/functions/process-story/index.ts` already implements a fallback that completes processing when only the title is missing, but that bundle has not been deployed, so production jobs keep aborting with `"Failed to generate title"`.
 - The impacted story also has no `audio_path` in `story_fields`, so the detail screen cannot render or play back the recording even though `audio_duration` (≈14 minutes) was captured on-device.
 
+## Status (Dec 7, 2025)
+- ✅ `process-story` edge function redeployed to Supabase (version `6d6d08f4...894e`); the live bundle now includes the `title_generation` fallback and the higher `max_completion_tokens = 150`, so GPT length truncations no longer abort the job when narrative text exists.
+- ⚠️ Could not requeue memory `4814b636-994d-463a-bf4d-bf521af6d99f` in the shared dev database—the row is missing from both `memories` and `memory_processing_status`. Please run the following in the production project where the record exists to clear the failure and trigger dispatcher pickup:
+
+```
+update memory_processing_status
+set state = 'scheduled',
+    attempts = 0,
+    last_error = null,
+    last_error_at = null
+where memory_id = '4814b636-994d-463a-bf4d-bf521af6d99f';
+```
+
 ## User impact
-- Story detail shows neither the generated narrative nor a playable audio clip; the memory card falls back to the placeholder title and audio banner, so the user cannot review the content they just recorded.
+- Story detail shows neither the generated narrative nor a playable audio clip; the memory card falls back to the placeholder title (and audio banner is missing), so the user cannot review the content they just recorded.
 - Dispatcher keeps retrying the bad processing code path, incrementing `attempts` and wasting OpenAI tokens while never unblocking the memory.
 
 ## Evidence

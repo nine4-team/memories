@@ -21,6 +21,13 @@ class CaptureState {
   /// Used to detect whether the text actually changed during an edit session.
   final String? originalInputText;
 
+  /// User-curated title (optional, primarily used during edits).
+  final String? memoryTitle;
+
+  /// Snapshot of the curated title when the edit session started.
+  /// Used to detect whether the curated title actually changed.
+  final String? originalMemoryTitle;
+
   /// List of selected photo file paths (local paths before upload)
   final List<String> photoPaths;
 
@@ -124,6 +131,8 @@ class CaptureState {
     this.memoryType = MemoryType.moment,
     this.inputText,
     this.originalInputText,
+    this.memoryTitle,
+    this.originalMemoryTitle,
     this.photoPaths = const [],
     this.videoPaths = const [],
     this.videoPosterPaths = const [],
@@ -163,6 +172,8 @@ class CaptureState {
     MemoryType? memoryType,
     String? inputText,
     String? originalInputText,
+    String? memoryTitle,
+    String? originalMemoryTitle,
     List<String>? photoPaths,
     List<String>? videoPaths,
     List<String?>? videoPosterPaths,
@@ -196,12 +207,14 @@ class CaptureState {
     List<String>? deletedVideoUrls,
     List<String?>? deletedVideoPosterUrls,
     bool clearInputText = false,
+    bool clearMemoryTitle = false,
     bool clearError = false,
     bool clearLocation = false,
     bool clearAudio = false,
     bool clearEditingMemoryId = false,
     bool clearOriginalEditingMemoryId = false,
     bool clearOriginalInputText = false,
+    bool clearOriginalMemoryTitle = false,
   }) {
     return CaptureState(
       memoryType: memoryType ?? this.memoryType,
@@ -209,6 +222,10 @@ class CaptureState {
       originalInputText: clearOriginalInputText
           ? null
           : (originalInputText ?? this.originalInputText),
+      memoryTitle: clearMemoryTitle ? null : (memoryTitle ?? this.memoryTitle),
+      originalMemoryTitle: clearOriginalMemoryTitle
+          ? null
+          : (originalMemoryTitle ?? this.originalMemoryTitle),
       photoPaths: photoPaths ?? this.photoPaths,
       videoPaths: videoPaths ?? this.videoPaths,
       videoPosterPaths: videoPosterPaths ?? this.videoPosterPaths,
@@ -308,6 +325,13 @@ class CaptureState {
   bool get hasInputTextChanged {
     final current = inputText?.trim();
     final original = originalInputText?.trim();
+    return current != original;
+  }
+
+  /// Whether the curated title changed compared to the original snapshot.
+  bool get hasMemoryTitleChanged {
+    final current = memoryTitle?.trim();
+    final original = originalMemoryTitle?.trim();
     return current != original;
   }
 }
