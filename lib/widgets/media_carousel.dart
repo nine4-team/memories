@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:memories/models/memory_detail.dart';
 import 'package:memories/providers/supabase_provider.dart';
@@ -420,7 +419,6 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
   bool _isPlaying = false;
   bool _hasError = false;
   bool _showControls = true;
-  bool _isFullscreen = false;
 
   @override
   void initState() {
@@ -434,9 +432,6 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
   void dispose() {
     _controller?.removeListener(_videoListener);
     _controller?.dispose();
-    if (_isFullscreen) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
     super.dispose();
   }
 
@@ -524,17 +519,6 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
     });
   }
 
-  void _toggleFullscreen() {
-    setState(() {
-      _isFullscreen = !_isFullscreen;
-      if (_isFullscreen) {
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      } else {
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      }
-    });
-  }
-
   void _toggleControlsVisibility() {
     setState(() {
       _showControls = !_showControls;
@@ -561,12 +545,12 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
     }
 
     final posterUrl = widget.video.posterUrl!;
-    
+
     // Handle local file paths (file:// or direct file path)
     if (widget.video.isLocal || posterUrl.startsWith('file://')) {
       final filePath = posterUrl.replaceFirst('file://', '');
       final file = File(filePath);
-      
+
       if (!file.existsSync()) {
         return const Center(
           child: CircularProgressIndicator(
@@ -574,7 +558,7 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
           ),
         );
       }
-      
+
       return Center(
         child: Image.file(
           file,
@@ -587,18 +571,15 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
     final supabaseUrl = ref.read(supabaseUrlProvider);
     final supabaseAnonKey = ref.read(supabaseAnonKeyProvider);
     final imageCache = ref.read(timelineImageCacheServiceProvider);
-    
+
     return FutureBuilder<String?>(
       future: imageCache.getSignedUrlForDetailView(
         supabaseUrl,
         supabaseAnonKey,
         'memories-photos',
         posterUrl,
-        accessToken: ref
-            .read(supabaseClientProvider)
-            .auth
-            .currentSession
-            ?.accessToken,
+        accessToken:
+            ref.read(supabaseClientProvider).auth.currentSession?.accessToken,
       ),
       builder: (context, snapshot) {
         if (snapshot.hasData) {
@@ -655,117 +636,72 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
               _buildVideoPoster(),
             // Video controls overlay
             if (_isInitialized && _controller != null)
-              AnimatedOpacity(
-                opacity: _showControls ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
-                child: Stack(
-                  children: [
-                    // Center play/pause button (only when paused)
-                    if (!_isPlaying)
-                      Center(
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: _togglePlayPause,
-                            borderRadius: BorderRadius.circular(32),
-                            child: Container(
-                              width: 64,
-                              height: 64,
-                              decoration: BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.play_arrow,
-                                color: Colors.white,
-                                size: 32,
-                              ),
-                            ),
-                          ),
-                        ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: AnimatedOpacity(
+                  opacity: _showControls ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.7),
+                        ],
                       ),
-                    // Bottom controls bar
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.7),
-                            ],
-                          ),
+                    ),
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                        child: SafeArea(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Control buttons row
+                            Row(
                               children: [
-                                // Progress slider
+                                // Play/pause button
+                                IconButton(
+                                  icon: Icon(
+                                    _isPlaying ? Icons.pause : Icons.play_arrow,
+                                  ),
+                                  color: Colors.white,
+                                  onPressed: _togglePlayPause,
+                                ),
+                                // Time display
                                 if (_controller!.value.duration.inMilliseconds >
                                     0)
-                                  VideoProgressIndicator(
-                                    _controller!,
-                                    allowScrubbing: true,
-                                    colors: const VideoProgressColors(
-                                      playedColor: Colors.white,
-                                      bufferedColor: Colors.white38,
-                                      backgroundColor: Colors.white24,
+                                  Text(
+                                    '${_formatDuration(_controller!.value.position.inSeconds.toDouble())} / ${_formatDuration(_controller!.value.duration.inSeconds.toDouble())}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
                                     ),
                                   ),
-                                const SizedBox(height: 8),
-                                // Control buttons row
-                                Row(
-                                  children: [
-                                    // Play/pause button
-                                    IconButton(
-                                      icon: Icon(
-                                        _isPlaying
-                                            ? Icons.pause
-                                            : Icons.play_arrow,
-                                      ),
-                                      color: Colors.white,
-                                      onPressed: _togglePlayPause,
-                                    ),
-                                    // Time display
-                                    if (_controller!
-                                            .value.duration.inMilliseconds >
-                                        0)
-                                      Text(
-                                        '${_formatDuration(_controller!.value.position.inSeconds.toDouble())} / ${_formatDuration(_controller!.value.duration.inSeconds.toDouble())}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    const Spacer(),
-                                    // Fullscreen button
-                                    IconButton(
-                                      icon: Icon(
-                                        _isFullscreen
-                                            ? Icons.fullscreen_exit
-                                            : Icons.fullscreen,
-                                      ),
-                                      color: Colors.white,
-                                      onPressed: _toggleFullscreen,
-                                    ),
-                                  ],
-                                ),
                               ],
                             ),
-                          ),
+                            // Progress slider at the bottom
+                            if (_controller!.value.duration.inMilliseconds > 0)
+                              VideoProgressIndicator(
+                                _controller!,
+                                allowScrubbing: true,
+                                colors: const VideoProgressColors(
+                                  playedColor: Colors.white,
+                                  bufferedColor: Colors.white38,
+                                  backgroundColor: Colors.white24,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
           ],
@@ -989,7 +925,6 @@ class _LightboxMediaSlideState extends ConsumerState<_LightboxMediaSlide> {
   bool _isInitialized = false;
   bool _isPlaying = false;
   bool _showControls = true;
-  bool _isFullscreen = false;
 
   @override
   void initState() {
@@ -1005,9 +940,6 @@ class _LightboxMediaSlideState extends ConsumerState<_LightboxMediaSlide> {
   void dispose() {
     _controller?.removeListener(_videoListener);
     _controller?.dispose();
-    if (_isFullscreen) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
     super.dispose();
   }
 
@@ -1082,17 +1014,6 @@ class _LightboxMediaSlideState extends ConsumerState<_LightboxMediaSlide> {
     });
   }
 
-  void _toggleFullscreen() {
-    setState(() {
-      _isFullscreen = !_isFullscreen;
-      if (_isFullscreen) {
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      } else {
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      }
-    });
-  }
-
   void _toggleControlsVisibility() {
     setState(() {
       _showControls = !_showControls;
@@ -1120,9 +1041,7 @@ class _LightboxMediaSlideState extends ConsumerState<_LightboxMediaSlide> {
         isInitialized: _isInitialized,
         isPlaying: _isPlaying,
         showControls: _showControls,
-        isFullscreen: _isFullscreen,
         onTogglePlayPause: _togglePlayPause,
-        onToggleFullscreen: _toggleFullscreen,
         onToggleControlsVisibility: _toggleControlsVisibility,
       );
     }
@@ -1227,12 +1146,12 @@ Widget _buildLightboxVideoPoster(VideoMedia video, WidgetRef ref) {
   }
 
   final posterUrl = video.posterUrl!;
-  
+
   // Handle local file paths (file:// or direct file path)
   if (video.isLocal || posterUrl.startsWith('file://')) {
     final filePath = posterUrl.replaceFirst('file://', '');
     final file = File(filePath);
-    
+
     if (!file.existsSync()) {
       return const Center(
         child: CircularProgressIndicator(
@@ -1240,7 +1159,7 @@ Widget _buildLightboxVideoPoster(VideoMedia video, WidgetRef ref) {
         ),
       );
     }
-    
+
     return Center(
       child: Image.file(
         file,
@@ -1253,18 +1172,15 @@ Widget _buildLightboxVideoPoster(VideoMedia video, WidgetRef ref) {
   final supabaseUrl = ref.read(supabaseUrlProvider);
   final supabaseAnonKey = ref.read(supabaseAnonKeyProvider);
   final imageCache = ref.read(timelineImageCacheServiceProvider);
-  
+
   return FutureBuilder<String?>(
     future: imageCache.getSignedUrlForDetailView(
       supabaseUrl,
       supabaseAnonKey,
       'memories-photos',
       posterUrl,
-      accessToken: ref
-          .read(supabaseClientProvider)
-          .auth
-          .currentSession
-          ?.accessToken,
+      accessToken:
+          ref.read(supabaseClientProvider).auth.currentSession?.accessToken,
     ),
     builder: (context, snapshot) {
       if (snapshot.hasData) {
@@ -1291,9 +1207,7 @@ class _LightboxVideoSlide extends ConsumerWidget {
   final bool isInitialized;
   final bool isPlaying;
   final bool showControls;
-  final bool isFullscreen;
   final VoidCallback onTogglePlayPause;
-  final VoidCallback onToggleFullscreen;
   final VoidCallback onToggleControlsVisibility;
 
   const _LightboxVideoSlide({
@@ -1302,9 +1216,7 @@ class _LightboxVideoSlide extends ConsumerWidget {
     required this.isInitialized,
     required this.isPlaying,
     required this.showControls,
-    required this.isFullscreen,
     required this.onTogglePlayPause,
-    required this.onToggleFullscreen,
     required this.onToggleControlsVisibility,
   });
 
@@ -1313,71 +1225,6 @@ class _LightboxVideoSlide extends ConsumerWidget {
     final minutes = duration.inMinutes;
     final secs = duration.inSeconds % 60;
     return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
-  }
-    if (video.posterUrl == null) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: Colors.white,
-        ),
-      );
-    }
-
-    final posterUrl = video.posterUrl!;
-    
-    // Handle local file paths (file:// or direct file path)
-    if (video.isLocal || posterUrl.startsWith('file://')) {
-      final filePath = posterUrl.replaceFirst('file://', '');
-      final file = File(filePath);
-      
-      if (!file.existsSync()) {
-        return const Center(
-          child: CircularProgressIndicator(
-            color: Colors.white,
-          ),
-        );
-      }
-      
-      return Center(
-        child: Image.file(
-          file,
-          fit: BoxFit.contain,
-        ),
-      );
-    }
-
-    // Handle remote URLs - get signed URL
-    final supabaseUrl = ref.read(supabaseUrlProvider);
-    final supabaseAnonKey = ref.read(supabaseAnonKeyProvider);
-    final imageCache = ref.read(timelineImageCacheServiceProvider);
-    
-    return FutureBuilder<String?>(
-      future: imageCache.getSignedUrlForDetailView(
-        supabaseUrl,
-        supabaseAnonKey,
-        'memories-photos',
-        posterUrl,
-        accessToken: ref
-            .read(supabaseClientProvider)
-            .auth
-            .currentSession
-            ?.accessToken,
-      ),
-      builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          return Center(
-            child: Image.network(
-              snapshot.data!,
-              fit: BoxFit.contain,
-            ),
-          );
-        }
-        return const Center(
-          child: CircularProgressIndicator(
-            color: Colors.white,
-          ),
-        );
-      },
-    );
   }
 
   @override
@@ -1398,116 +1245,69 @@ class _LightboxVideoSlide extends ConsumerWidget {
             _buildLightboxVideoPoster(video, ref),
           // Video controls overlay
           if (isInitialized && controller != null)
-            AnimatedOpacity(
-              opacity: showControls ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 200),
-              child: Stack(
-                children: [
-                  // Center play/pause button (only when paused)
-                  if (!isPlaying)
-                    Center(
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: onTogglePlayPause,
-                          borderRadius: BorderRadius.circular(32),
-                          child: Container(
-                            width: 64,
-                            height: 64,
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.play_arrow,
-                              color: Colors.white,
-                              size: 32,
-                            ),
-                          ),
-                        ),
-                      ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: AnimatedOpacity(
+                opacity: showControls ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.7),
+                      ],
                     ),
-                  // Bottom controls bar
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withOpacity(0.7),
-                          ],
-                        ),
-                      ),
-                      child: SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Control buttons row
+                          Row(
                             children: [
-                              // Progress slider
+                              // Play/pause button
+                              IconButton(
+                                icon: Icon(
+                                  isPlaying ? Icons.pause : Icons.play_arrow,
+                                ),
+                                color: Colors.white,
+                                onPressed: onTogglePlayPause,
+                              ),
+                              // Time display
                               if (controller!.value.duration.inMilliseconds > 0)
-                                VideoProgressIndicator(
-                                  controller!,
-                                  allowScrubbing: true,
-                                  colors: const VideoProgressColors(
-                                    playedColor: Colors.white,
-                                    bufferedColor: Colors.white38,
-                                    backgroundColor: Colors.white24,
+                                Text(
+                                  '${_formatDuration(controller!.value.position.inSeconds.toDouble())} / ${_formatDuration(controller!.value.duration.inSeconds.toDouble())}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
                                   ),
                                 ),
-                              const SizedBox(height: 8),
-                              // Control buttons row
-                              Row(
-                                children: [
-                                  // Play/pause button
-                                  IconButton(
-                                    icon: Icon(
-                                      isPlaying
-                                          ? Icons.pause
-                                          : Icons.play_arrow,
-                                    ),
-                                    color: Colors.white,
-                                    onPressed: onTogglePlayPause,
-                                  ),
-                                  // Time display
-                                  if (controller!
-                                          .value.duration.inMilliseconds >
-                                      0)
-                                    Text(
-                                      '${_formatDuration(controller!.value.position.inSeconds.toDouble())} / ${_formatDuration(controller!.value.duration.inSeconds.toDouble())}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  const Spacer(),
-                                  // Fullscreen button
-                                  IconButton(
-                                    icon: Icon(
-                                      isFullscreen
-                                          ? Icons.fullscreen_exit
-                                          : Icons.fullscreen,
-                                    ),
-                                    color: Colors.white,
-                                    onPressed: onToggleFullscreen,
-                                  ),
-                                ],
-                              ),
                             ],
                           ),
-                        ),
+                          // Progress slider at the bottom
+                          if (controller!.value.duration.inMilliseconds > 0)
+                            VideoProgressIndicator(
+                              controller!,
+                              allowScrubbing: true,
+                              colors: const VideoProgressColors(
+                                playedColor: Colors.white,
+                                bufferedColor: Colors.white38,
+                                backgroundColor: Colors.white24,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
             ),
         ],
