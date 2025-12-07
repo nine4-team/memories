@@ -31,6 +31,7 @@ dependencies:
   # Media & Camera
   image_picker: ^1.0.7
   video_player: ^2.8.2
+  video_thumbnail: ^0.5.3
   just_audio: ^0.9.38
   gal: ^2.0.1
   

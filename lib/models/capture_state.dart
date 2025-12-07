@@ -27,6 +27,9 @@ class CaptureState {
   /// List of selected video file paths (local paths before upload)
   final List<String> videoPaths;
 
+  /// List of generated video poster file paths aligned with [videoPaths]
+  final List<String?> videoPosterPaths;
+
   /// List of tags (case-insensitive, trimmed)
   final List<String> tags;
 
@@ -105,11 +108,17 @@ class CaptureState {
   /// List of existing video URLs from the memory being edited
   final List<String> existingVideoUrls;
 
+  /// List of existing video poster URLs aligned with [existingVideoUrls]
+  final List<String?> existingVideoPosterUrls;
+
   /// List of existing photo URLs that should be deleted on save
   final List<String> deletedPhotoUrls;
 
   /// List of existing video URLs that should be deleted on save
   final List<String> deletedVideoUrls;
+
+  /// List of existing video poster URLs that should be deleted on save
+  final List<String?> deletedVideoPosterUrls;
 
   const CaptureState({
     this.memoryType = MemoryType.moment,
@@ -117,6 +126,7 @@ class CaptureState {
     this.originalInputText,
     this.photoPaths = const [],
     this.videoPaths = const [],
+    this.videoPosterPaths = const [],
     this.tags = const [],
     this.isDictating = false,
     this.audioLevel = 0.0,
@@ -142,8 +152,10 @@ class CaptureState {
     this.originalEditingMemoryId,
     this.existingPhotoUrls = const [],
     this.existingVideoUrls = const [],
+    this.existingVideoPosterUrls = const [],
     this.deletedPhotoUrls = const [],
     this.deletedVideoUrls = const [],
+    this.deletedVideoPosterUrls = const [],
   });
 
   /// Create a copy with updated fields
@@ -153,6 +165,7 @@ class CaptureState {
     String? originalInputText,
     List<String>? photoPaths,
     List<String>? videoPaths,
+    List<String?>? videoPosterPaths,
     List<String>? tags,
     bool? isDictating,
     double? audioLevel,
@@ -178,8 +191,10 @@ class CaptureState {
     String? originalEditingMemoryId,
     List<String>? existingPhotoUrls,
     List<String>? existingVideoUrls,
+    List<String?>? existingVideoPosterUrls,
     List<String>? deletedPhotoUrls,
     List<String>? deletedVideoUrls,
+    List<String?>? deletedVideoPosterUrls,
     bool clearInputText = false,
     bool clearError = false,
     bool clearLocation = false,
@@ -196,6 +211,7 @@ class CaptureState {
           : (originalInputText ?? this.originalInputText),
       photoPaths: photoPaths ?? this.photoPaths,
       videoPaths: videoPaths ?? this.videoPaths,
+      videoPosterPaths: videoPosterPaths ?? this.videoPosterPaths,
       tags: tags ?? this.tags,
       isDictating: isDictating ?? this.isDictating,
       audioLevel: audioLevel ?? this.audioLevel,
@@ -228,8 +244,12 @@ class CaptureState {
           : (originalEditingMemoryId ?? this.originalEditingMemoryId),
       existingPhotoUrls: existingPhotoUrls ?? this.existingPhotoUrls,
       existingVideoUrls: existingVideoUrls ?? this.existingVideoUrls,
+      existingVideoPosterUrls:
+          existingVideoPosterUrls ?? this.existingVideoPosterUrls,
       deletedPhotoUrls: deletedPhotoUrls ?? this.deletedPhotoUrls,
       deletedVideoUrls: deletedVideoUrls ?? this.deletedVideoUrls,
+      deletedVideoPosterUrls:
+          deletedVideoPosterUrls ?? this.deletedVideoPosterUrls,
     );
   }
 

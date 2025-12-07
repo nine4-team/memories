@@ -427,15 +427,17 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     );
   }
 
-  /// Add video path
-  void addVideo(String path) {
+  /// Add video path and optional poster
+  void addVideo(String path, {String? posterPath}) {
     if (!state.canAddVideo) {
       return;
     }
 
     final updatedVideos = [...state.videoPaths, path];
+    final updatedPosters = [...state.videoPosterPaths, posterPath];
     state = state.copyWith(
       videoPaths: updatedVideos,
+      videoPosterPaths: updatedPosters,
       hasUnsavedChanges: true,
     );
   }
@@ -448,8 +450,13 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
 
     final updatedVideos = List<String>.from(state.videoPaths);
     updatedVideos.removeAt(index);
+    final updatedPosters = List<String?>.from(state.videoPosterPaths);
+    if (index < updatedPosters.length) {
+      updatedPosters.removeAt(index);
+    }
     state = state.copyWith(
       videoPaths: updatedVideos,
+      videoPosterPaths: updatedPosters,
       hasUnsavedChanges: true,
     );
   }
@@ -809,6 +816,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     String? locationStatus,
     List<String>? existingPhotoUrls,
     List<String>? existingVideoUrls,
+    List<String?>? existingVideoPosterUrls,
     DateTime? memoryDate,
   }) {
     final memoryType = MemoryTypeExtension.fromApiValue(captureType);
@@ -829,9 +837,11 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
       locationStatus: locationStatus,
       existingPhotoUrls: existingPhotoUrls ?? [],
       existingVideoUrls: existingVideoUrls ?? [],
+      existingVideoPosterUrls: existingVideoPosterUrls ?? [],
       memoryDate: memoryDate,
       deletedPhotoUrls: const [],
       deletedVideoUrls: const [],
+      deletedVideoPosterUrls: const [],
       hasUnsavedChanges: false, // Reset since we're loading existing data
     );
   }
@@ -848,6 +858,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     required List<String> tags,
     required List<String> existingPhotoPaths,
     required List<String> existingVideoPaths,
+    required List<String?> existingVideoPosterPaths,
     double? latitude,
     double? longitude,
     String? locationStatus,
@@ -866,13 +877,20 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
       locationStatus: locationStatus,
       existingPhotoUrls: existingPhotoPaths.map((p) => 'file://$p').toList(),
       existingVideoUrls: existingVideoPaths.map((p) => 'file://$p').toList(),
+      existingVideoPosterUrls: existingVideoPosterPaths
+          .map((p) => p == null
+              ? null
+              : (p.startsWith('file://') ? p : 'file://$p'))
+          .toList(),
       captureStartTime: capturedAt,
       memoryDate: memoryDate,
       editingMemoryId: null, // Do NOT treat this as an online edit
       photoPaths: [], // Start with empty new photos
       videoPaths: [], // Start with empty new videos
+      videoPosterPaths: const [],
       deletedPhotoUrls: const [],
       deletedVideoUrls: const [],
+      deletedVideoPosterUrls: const [],
       hasUnsavedChanges: false, // Reset since we're loading existing data
     );
   }
@@ -908,10 +926,22 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     final updatedExisting = List<String>.from(state.existingVideoUrls);
     final removedUrl = updatedExisting.removeAt(index);
     final updatedDeleted = [...state.deletedVideoUrls, removedUrl];
+    final updatedExistingPosters =
+        List<String?>.from(state.existingVideoPosterUrls);
+    String? removedPoster;
+    if (index < updatedExistingPosters.length) {
+      removedPoster = updatedExistingPosters.removeAt(index);
+    }
+    final updatedDeletedPosters = [
+      ...state.deletedVideoPosterUrls,
+      removedPoster
+    ];
 
     state = state.copyWith(
       existingVideoUrls: updatedExisting,
+      existingVideoPosterUrls: updatedExistingPosters,
       deletedVideoUrls: updatedDeleted,
+      deletedVideoPosterUrls: updatedDeletedPosters,
       hasUnsavedChanges: true,
     );
   }

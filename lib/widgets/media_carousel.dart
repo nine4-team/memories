@@ -1,7 +1,7 @@
-import 'dart:developer' as developer;
+import 'dart:io';
 import 'dart:ui';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:memories/models/memory_detail.dart';
 import 'package:memories/providers/supabase_provider.dart';
@@ -323,22 +323,6 @@ class _PhotoSlideState extends ConsumerState<_PhotoSlide> {
               ),
               builder: (context, snapshot) {
                 if (snapshot.hasError || widget.hasError) {
-                  final errorDetails = snapshot.hasError
-                      ? 'Error: ${snapshot.error}, Photo URL: ${widget.photo.url}'
-                      : widget.errorMessage ?? 'Failed to load image';
-
-                  // debugPrint(
-                  //    '[MediaCarousel] ✗ Photo slide error: $errorDetails');
-                  if (snapshot.hasError) {
-                    // debugPrint(
-                    //    '[MediaCarousel]   Error object: ${snapshot.error}');
-                  }
-                  // developer.log(
-                  //   'Photo slide error: $errorDetails',
-                  //   name: 'MediaCarousel',
-                  //   error: snapshot.error,
-                  // );
-
                   return _ErrorPlaceholder(
                     message: widget.errorMessage ?? 'Failed to load image',
                     onRetry: widget.onRetry,
@@ -435,6 +419,8 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
   bool _isInitialized = false;
   bool _isPlaying = false;
   bool _hasError = false;
+  bool _showControls = true;
+  bool _isFullscreen = false;
 
   @override
   void initState() {
@@ -446,8 +432,24 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
 
   @override
   void dispose() {
+    _controller?.removeListener(_videoListener);
     _controller?.dispose();
+    if (_isFullscreen) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     super.dispose();
+  }
+
+  void _videoListener() {
+    if (_controller != null && mounted) {
+      final isPlaying = _controller!.value.isPlaying;
+      if (isPlaying != _isPlaying) {
+        setState(() {
+          _isPlaying = isPlaying;
+          _showControls = !isPlaying;
+        });
+      }
+    }
   }
 
   Future<void> _initializeVideo() async {
@@ -471,6 +473,7 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
       await _controller!.initialize();
 
       if (mounted) {
+        _controller!.addListener(_videoListener);
         setState(() {
           _isInitialized = true;
           _hasError = false;
@@ -504,19 +507,119 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
       if (_controller!.value.isPlaying) {
         _controller!.pause();
         _isPlaying = false;
+        _showControls = true;
       } else {
         _controller!.play();
         _isPlaying = true;
+        _showControls = false;
+        // Auto-hide controls after 3 seconds
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && _controller?.value.isPlaying == true) {
+            setState(() {
+              _showControls = false;
+            });
+          }
+        });
       }
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
+  void _toggleFullscreen() {
+    setState(() {
+      _isFullscreen = !_isFullscreen;
+      if (_isFullscreen) {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      } else {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      }
+    });
+  }
+
+  void _toggleControlsVisibility() {
+    setState(() {
+      _showControls = !_showControls;
+      if (_showControls && _isPlaying) {
+        // Auto-hide controls after 3 seconds
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && _controller?.value.isPlaying == true) {
+            setState(() {
+              _showControls = false;
+            });
+          }
+        });
+      }
+    });
+  }
+
+  Widget _buildVideoPoster() {
+    if (widget.video.posterUrl == null) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Colors.white,
+        ),
+      );
+    }
+
+    final posterUrl = widget.video.posterUrl!;
+    
+    // Handle local file paths (file:// or direct file path)
+    if (widget.video.isLocal || posterUrl.startsWith('file://')) {
+      final filePath = posterUrl.replaceFirst('file://', '');
+      final file = File(filePath);
+      
+      if (!file.existsSync()) {
+        return const Center(
+          child: CircularProgressIndicator(
+            color: Colors.white,
+          ),
+        );
+      }
+      
+      return Center(
+        child: Image.file(
+          file,
+          fit: BoxFit.contain,
+        ),
+      );
+    }
+
+    // Handle remote URLs - get signed URL
     final supabaseUrl = ref.read(supabaseUrlProvider);
     final supabaseAnonKey = ref.read(supabaseAnonKeyProvider);
     final imageCache = ref.read(timelineImageCacheServiceProvider);
+    
+    return FutureBuilder<String?>(
+      future: imageCache.getSignedUrlForDetailView(
+        supabaseUrl,
+        supabaseAnonKey,
+        'memories-photos',
+        posterUrl,
+        accessToken: ref
+            .read(supabaseClientProvider)
+            .auth
+            .currentSession
+            ?.accessToken,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return Center(
+            child: Image.network(
+              snapshot.data!,
+              fit: BoxFit.contain,
+            ),
+          );
+        }
+        return const Center(
+          child: CircularProgressIndicator(
+            color: Colors.white,
+          ),
+        );
+      },
+    );
+  }
 
+  @override
+  Widget build(BuildContext context) {
     if (widget.hasError || _hasError) {
       return Container(
         color: Colors.black,
@@ -532,7 +635,10 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
     }
 
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: () {
+        _toggleControlsVisibility();
+        widget.onTap();
+      },
       child: Container(
         color: Colors.black,
         child: Stack(
@@ -546,82 +652,120 @@ class _VideoSlideState extends ConsumerState<_VideoSlide> {
                 ),
               )
             else
-              FutureBuilder<String?>(
-                future: widget.video.posterUrl != null
-                    ? imageCache.getSignedUrlForDetailView(
-                        supabaseUrl,
-                        supabaseAnonKey,
-                        'memories-photos',
-                        widget.video.posterUrl!,
-                        accessToken: ref
-                            .read(supabaseClientProvider)
-                            .auth
-                            .currentSession
-                            ?.accessToken,
-                      )
-                    : Future.value(null),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    return Center(
-                      child: Image.network(
-                        snapshot.data!,
-                        fit: BoxFit.contain,
-                      ),
-                    );
-                  }
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                    ),
-                  );
-                },
-              ),
-            // Play/pause overlay
+              _buildVideoPoster(),
+            // Video controls overlay
             if (_isInitialized && _controller != null)
-              Center(
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: _togglePlayPause,
-                    borderRadius: BorderRadius.circular(32),
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        shape: BoxShape.circle,
+              AnimatedOpacity(
+                opacity: _showControls ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Stack(
+                  children: [
+                    // Center play/pause button (only when paused)
+                    if (!_isPlaying)
+                      Center(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _togglePlayPause,
+                            borderRadius: BorderRadius.circular(32),
+                            child: Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow,
+                                color: Colors.white,
+                                size: 32,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                      child: Icon(
-                        _isPlaying ? Icons.pause : Icons.play_arrow,
-                        color: Colors.white,
-                        size: 32,
+                    // Bottom controls bar
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.7),
+                            ],
+                          ),
+                        ),
+                        child: SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Progress slider
+                                if (_controller!.value.duration.inMilliseconds >
+                                    0)
+                                  VideoProgressIndicator(
+                                    _controller!,
+                                    allowScrubbing: true,
+                                    colors: const VideoProgressColors(
+                                      playedColor: Colors.white,
+                                      bufferedColor: Colors.white38,
+                                      backgroundColor: Colors.white24,
+                                    ),
+                                  ),
+                                const SizedBox(height: 8),
+                                // Control buttons row
+                                Row(
+                                  children: [
+                                    // Play/pause button
+                                    IconButton(
+                                      icon: Icon(
+                                        _isPlaying
+                                            ? Icons.pause
+                                            : Icons.play_arrow,
+                                      ),
+                                      color: Colors.white,
+                                      onPressed: _togglePlayPause,
+                                    ),
+                                    // Time display
+                                    if (_controller!
+                                            .value.duration.inMilliseconds >
+                                        0)
+                                      Text(
+                                        '${_formatDuration(_controller!.value.position.inSeconds.toDouble())} / ${_formatDuration(_controller!.value.duration.inSeconds.toDouble())}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    const Spacer(),
+                                    // Fullscreen button
+                                    IconButton(
+                                      icon: Icon(
+                                        _isFullscreen
+                                            ? Icons.fullscreen_exit
+                                            : Icons.fullscreen,
+                                      ),
+                                      color: Colors.white,
+                                      onPressed: _toggleFullscreen,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ),
-            // Video duration indicator
-            if (widget.video.duration != null)
-              Positioned(
-                bottom: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    _formatDuration(widget.video.duration!),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  ],
                 ),
               ),
           ],
@@ -844,6 +988,8 @@ class _LightboxMediaSlideState extends ConsumerState<_LightboxMediaSlide> {
   VideoPlayerController? _controller;
   bool _isInitialized = false;
   bool _isPlaying = false;
+  bool _showControls = true;
+  bool _isFullscreen = false;
 
   @override
   void initState() {
@@ -857,8 +1003,24 @@ class _LightboxMediaSlideState extends ConsumerState<_LightboxMediaSlide> {
 
   @override
   void dispose() {
+    _controller?.removeListener(_videoListener);
     _controller?.dispose();
+    if (_isFullscreen) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     super.dispose();
+  }
+
+  void _videoListener() {
+    if (_controller != null && mounted) {
+      final isPlaying = _controller!.value.isPlaying;
+      if (isPlaying != _isPlaying) {
+        setState(() {
+          _isPlaying = isPlaying;
+          _showControls = !isPlaying;
+        });
+      }
+    }
   }
 
   Future<void> _initializeVideo() async {
@@ -881,6 +1043,7 @@ class _LightboxMediaSlideState extends ConsumerState<_LightboxMediaSlide> {
       await _controller!.initialize();
 
       if (mounted) {
+        _controller!.addListener(_videoListener);
         setState(() {
           _isInitialized = true;
         });
@@ -902,9 +1065,46 @@ class _LightboxMediaSlideState extends ConsumerState<_LightboxMediaSlide> {
       if (_controller!.value.isPlaying) {
         _controller!.pause();
         _isPlaying = false;
+        _showControls = true;
       } else {
         _controller!.play();
         _isPlaying = true;
+        _showControls = false;
+        // Auto-hide controls after 3 seconds
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && _controller?.value.isPlaying == true) {
+            setState(() {
+              _showControls = false;
+            });
+          }
+        });
+      }
+    });
+  }
+
+  void _toggleFullscreen() {
+    setState(() {
+      _isFullscreen = !_isFullscreen;
+      if (_isFullscreen) {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      } else {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      }
+    });
+  }
+
+  void _toggleControlsVisibility() {
+    setState(() {
+      _showControls = !_showControls;
+      if (_showControls && _isPlaying) {
+        // Auto-hide controls after 3 seconds
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && _controller?.value.isPlaying == true) {
+            setState(() {
+              _showControls = false;
+            });
+          }
+        });
       }
     });
   }
@@ -919,7 +1119,11 @@ class _LightboxMediaSlideState extends ConsumerState<_LightboxMediaSlide> {
         controller: _controller,
         isInitialized: _isInitialized,
         isPlaying: _isPlaying,
+        showControls: _showControls,
+        isFullscreen: _isFullscreen,
         onTogglePlayPause: _togglePlayPause,
+        onToggleFullscreen: _toggleFullscreen,
+        onToggleControlsVisibility: _toggleControlsVisibility,
       );
     }
   }
@@ -1012,94 +1216,302 @@ class _LightboxPhotoSlideState extends ConsumerState<_LightboxPhotoSlide> {
   }
 }
 
+/// Helper function to build video poster widget for lightbox
+Widget _buildLightboxVideoPoster(VideoMedia video, WidgetRef ref) {
+  if (video.posterUrl == null) {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: Colors.white,
+      ),
+    );
+  }
+
+  final posterUrl = video.posterUrl!;
+  
+  // Handle local file paths (file:// or direct file path)
+  if (video.isLocal || posterUrl.startsWith('file://')) {
+    final filePath = posterUrl.replaceFirst('file://', '');
+    final file = File(filePath);
+    
+    if (!file.existsSync()) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Colors.white,
+        ),
+      );
+    }
+    
+    return Center(
+      child: Image.file(
+        file,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
+  // Handle remote URLs - get signed URL
+  final supabaseUrl = ref.read(supabaseUrlProvider);
+  final supabaseAnonKey = ref.read(supabaseAnonKeyProvider);
+  final imageCache = ref.read(timelineImageCacheServiceProvider);
+  
+  return FutureBuilder<String?>(
+    future: imageCache.getSignedUrlForDetailView(
+      supabaseUrl,
+      supabaseAnonKey,
+      'memories-photos',
+      posterUrl,
+      accessToken: ref
+          .read(supabaseClientProvider)
+          .auth
+          .currentSession
+          ?.accessToken,
+    ),
+    builder: (context, snapshot) {
+      if (snapshot.hasData) {
+        return Center(
+          child: Image.network(
+            snapshot.data!,
+            fit: BoxFit.contain,
+          ),
+        );
+      }
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Colors.white,
+        ),
+      );
+    },
+  );
+}
+
 /// Lightbox video slide
 class _LightboxVideoSlide extends ConsumerWidget {
   final VideoMedia video;
   final VideoPlayerController? controller;
   final bool isInitialized;
   final bool isPlaying;
+  final bool showControls;
+  final bool isFullscreen;
   final VoidCallback onTogglePlayPause;
+  final VoidCallback onToggleFullscreen;
+  final VoidCallback onToggleControlsVisibility;
 
   const _LightboxVideoSlide({
     required this.video,
     required this.controller,
     required this.isInitialized,
     required this.isPlaying,
+    required this.showControls,
+    required this.isFullscreen,
     required this.onTogglePlayPause,
+    required this.onToggleFullscreen,
+    required this.onToggleControlsVisibility,
   });
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  String _formatDuration(double seconds) {
+    final duration = Duration(seconds: seconds.toInt());
+    final minutes = duration.inMinutes;
+    final secs = duration.inSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+    if (video.posterUrl == null) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Colors.white,
+        ),
+      );
+    }
+
+    final posterUrl = video.posterUrl!;
+    
+    // Handle local file paths (file:// or direct file path)
+    if (video.isLocal || posterUrl.startsWith('file://')) {
+      final filePath = posterUrl.replaceFirst('file://', '');
+      final file = File(filePath);
+      
+      if (!file.existsSync()) {
+        return const Center(
+          child: CircularProgressIndicator(
+            color: Colors.white,
+          ),
+        );
+      }
+      
+      return Center(
+        child: Image.file(
+          file,
+          fit: BoxFit.contain,
+        ),
+      );
+    }
+
+    // Handle remote URLs - get signed URL
     final supabaseUrl = ref.read(supabaseUrlProvider);
     final supabaseAnonKey = ref.read(supabaseAnonKeyProvider);
     final imageCache = ref.read(timelineImageCacheServiceProvider);
-
-    return Stack(
-      children: [
-        // Video player or poster
-        if (isInitialized && controller != null)
-          Center(
-            child: AspectRatio(
-              aspectRatio: controller!.value.aspectRatio,
-              child: VideoPlayer(controller!),
+    
+    return FutureBuilder<String?>(
+      future: imageCache.getSignedUrlForDetailView(
+        supabaseUrl,
+        supabaseAnonKey,
+        'memories-photos',
+        posterUrl,
+        accessToken: ref
+            .read(supabaseClientProvider)
+            .auth
+            .currentSession
+            ?.accessToken,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return Center(
+            child: Image.network(
+              snapshot.data!,
+              fit: BoxFit.contain,
             ),
-          )
-        else
-          FutureBuilder<String?>(
-            future: video.posterUrl != null
-                ? imageCache.getSignedUrlForDetailView(
-                    supabaseUrl,
-                    supabaseAnonKey,
-                    'memories-photos',
-                    video.posterUrl!,
-                    accessToken: ref
-                        .read(supabaseClientProvider)
-                        .auth
-                        .currentSession
-                        ?.accessToken,
-                  )
-                : Future.value(null),
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                return Center(
-                  child: Image.network(
-                    snapshot.data!,
-                    fit: BoxFit.contain,
-                  ),
-                );
-              }
-              return const Center(
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                ),
-              );
-            },
+          );
+        }
+        return const Center(
+          child: CircularProgressIndicator(
+            color: Colors.white,
           ),
-        // Play/pause overlay
-        if (isInitialized && controller != null)
-          Center(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTogglePlayPause,
-                borderRadius: BorderRadius.circular(32),
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    shape: BoxShape.circle,
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GestureDetector(
+      onTap: onToggleControlsVisibility,
+      child: Stack(
+        children: [
+          // Video player or poster
+          if (isInitialized && controller != null)
+            Center(
+              child: AspectRatio(
+                aspectRatio: controller!.value.aspectRatio,
+                child: VideoPlayer(controller!),
+              ),
+            )
+          else
+            _buildLightboxVideoPoster(video, ref),
+          // Video controls overlay
+          if (isInitialized && controller != null)
+            AnimatedOpacity(
+              opacity: showControls ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: Stack(
+                children: [
+                  // Center play/pause button (only when paused)
+                  if (!isPlaying)
+                    Center(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: onTogglePlayPause,
+                          borderRadius: BorderRadius.circular(32),
+                          child: Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Bottom controls bar
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.7),
+                          ],
+                        ),
+                      ),
+                      child: SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Progress slider
+                              if (controller!.value.duration.inMilliseconds > 0)
+                                VideoProgressIndicator(
+                                  controller!,
+                                  allowScrubbing: true,
+                                  colors: const VideoProgressColors(
+                                    playedColor: Colors.white,
+                                    bufferedColor: Colors.white38,
+                                    backgroundColor: Colors.white24,
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                              // Control buttons row
+                              Row(
+                                children: [
+                                  // Play/pause button
+                                  IconButton(
+                                    icon: Icon(
+                                      isPlaying
+                                          ? Icons.pause
+                                          : Icons.play_arrow,
+                                    ),
+                                    color: Colors.white,
+                                    onPressed: onTogglePlayPause,
+                                  ),
+                                  // Time display
+                                  if (controller!
+                                          .value.duration.inMilliseconds >
+                                      0)
+                                    Text(
+                                      '${_formatDuration(controller!.value.position.inSeconds.toDouble())} / ${_formatDuration(controller!.value.duration.inSeconds.toDouble())}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  const Spacer(),
+                                  // Fullscreen button
+                                  IconButton(
+                                    icon: Icon(
+                                      isFullscreen
+                                          ? Icons.fullscreen_exit
+                                          : Icons.fullscreen,
+                                    ),
+                                    color: Colors.white,
+                                    onPressed: onToggleFullscreen,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  child: Icon(
-                    isPlaying ? Icons.pause : Icons.play_arrow,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                ),
+                ],
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

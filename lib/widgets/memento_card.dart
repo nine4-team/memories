@@ -326,7 +326,11 @@ class MementoCard extends ConsumerWidget {
           ),
         );
       } else {
-        // Video - show generic video chip
+        // Video - show poster if available, otherwise generic video chip
+        final posterPath = media.posterUrl?.replaceFirst('file://', '');
+        final posterFile = posterPath != null ? File(posterPath) : null;
+        final hasLocalPoster = posterFile != null && posterFile.existsSync();
+        
         return Semantics(
           label: 'Video thumbnail',
           image: true,
@@ -334,14 +338,35 @@ class MementoCard extends ConsumerWidget {
             tag: heroTag,
             child: Stack(
               children: [
-                Container(
-                  width: thumbnailSize,
-                  height: thumbnailSize,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceVariant,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.videocam, size: 32),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: hasLocalPoster
+                      ? Image.file(
+                          posterFile,
+                          width: thumbnailSize,
+                          height: thumbnailSize,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: thumbnailSize,
+                              height: thumbnailSize,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.surfaceVariant,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.videocam, size: 32),
+                            );
+                          },
+                        )
+                      : Container(
+                          width: thumbnailSize,
+                          height: thumbnailSize,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surfaceVariant,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.videocam, size: 32),
+                        ),
                 ),
                 // Memory type icon overlay in upper right corner
                 Positioned(
@@ -403,14 +428,18 @@ class MementoCard extends ConsumerWidget {
       );
     }
 
+    // For videos, prefer poster URL if available, otherwise use video URL
+    final isVideo = media.isVideo;
     final bucket = media.isPhoto ? 'memories-photos' : 'memories-videos';
+    final urlToLoad = isVideo && media.posterUrl != null ? media.posterUrl! : media.url;
+    final bucketForUrl = isVideo && media.posterUrl != null ? 'memories-photos' : bucket;
 
     // Get signed URL from cache or generate new one
     final signedUrl = imageCache.getSignedUrl(
       supabaseUrl,
       supabaseAnonKey,
-      bucket,
-      media.url,
+      bucketForUrl,
+      urlToLoad,
       accessToken: accessToken,
     );
 

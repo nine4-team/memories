@@ -143,12 +143,28 @@ class _MediaThumbnail extends ConsumerStatefulWidget {
 
 class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
   VideoPlayerController? _videoController;
+  Future<String>? _videoPosterUrlFuture;
 
   @override
   void initState() {
     super.initState();
     if (!widget.item.isPhoto) {
       _initializeVideo();
+      _initializeVideoPosterUrl();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_MediaThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the video changed, reset the cached Future
+    if (!widget.item.isPhoto && !oldWidget.item.isPhoto) {
+      final oldPosterUrl = oldWidget.item.video?.posterUrl;
+      final newPosterUrl = widget.item.video?.posterUrl;
+      if (oldPosterUrl != newPosterUrl) {
+        _videoPosterUrlFuture = null;
+        _initializeVideoPosterUrl();
+      }
     }
   }
 
@@ -190,6 +206,32 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
         path: video.posterUrl ?? video.url,
         error: e,
         stackTrace: stackTrace,
+      );
+    }
+  }
+
+  void _initializeVideoPosterUrl() {
+    final video = widget.item.video!;
+
+    // Skip for local videos (no poster URL available)
+    if (video.isLocal || video.posterUrl == null) {
+      return;
+    }
+
+    // Cache the Future to avoid recreating it on every build
+    if (_videoPosterUrlFuture == null) {
+      final supabaseUrl = ref.read(supabaseUrlProvider);
+      final supabaseAnonKey = ref.read(supabaseAnonKeyProvider);
+      final imageCache = ref.read(timelineImageCacheServiceProvider);
+      final accessToken =
+          ref.read(supabaseClientProvider).auth.currentSession?.accessToken;
+
+      _videoPosterUrlFuture = imageCache.getSignedUrlForDetailView(
+        supabaseUrl,
+        supabaseAnonKey,
+        'memories-photos',
+        video.posterUrl!,
+        accessToken: accessToken,
       );
     }
   }
@@ -253,13 +295,13 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
                       width: 24,
                       height: 24,
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
+                        color: overlayBackgroundColor,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.close,
                         size: 16,
-                        color: Colors.white,
+                        color: overlayColor,
                       ),
                     ),
                   ),
@@ -411,24 +453,14 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
     }
 
     // Remote Supabase media - use signed URL for poster
-    final supabaseUrl = ref.read(supabaseUrlProvider);
-    final supabaseAnonKey = ref.read(supabaseAnonKeyProvider);
-    final imageCache = ref.read(timelineImageCacheServiceProvider);
-    final accessToken =
-        ref.read(supabaseClientProvider).auth.currentSession?.accessToken;
+    // The Future is cached in _videoPosterUrlFuture to avoid recreating it on every build
 
     return Stack(
       children: [
         // Video poster or placeholder
-        if (video.posterUrl != null)
+        if (video.posterUrl != null && _videoPosterUrlFuture != null)
           FutureBuilder<String>(
-            future: imageCache.getSignedUrlForDetailView(
-              supabaseUrl,
-              supabaseAnonKey,
-              'memories-photos',
-              video.posterUrl!,
-              accessToken: accessToken,
-            ),
+            future: _videoPosterUrlFuture,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 _logSignedUrlFailure(

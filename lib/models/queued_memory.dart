@@ -42,6 +42,9 @@ class QueuedMemory {
   /// Video file paths (local)
   final List<String> videoPaths;
 
+  /// Video poster file paths aligned with [videoPaths]
+  final List<String?> videoPosterPaths;
+
   /// Tags
   final List<String> tags;
 
@@ -94,15 +97,21 @@ class QueuedMemory {
   /// Existing remote video URLs included when editing
   final List<String> existingVideoUrls;
 
+  /// Existing remote video poster URLs aligned with [existingVideoUrls]
+  final List<String?> existingVideoPosterUrls;
+
   /// Remote photo URLs that should be deleted on sync
   final List<String> deletedPhotoUrls;
 
   /// Remote video URLs that should be deleted on sync
   final List<String> deletedVideoUrls;
 
+  /// Remote video poster URLs that should be deleted on sync
+  final List<String?> deletedVideoPosterUrls;
+
   /// Version of the serialization format
   /// Increment this when making breaking changes to the model structure
-  static const int currentVersion = 3;
+  static const int currentVersion = 4;
 
   /// Model version for this instance
   final int version;
@@ -115,6 +124,7 @@ class QueuedMemory {
     this.audioDuration,
     this.photoPaths = const [],
     this.videoPaths = const [],
+    this.videoPosterPaths = const [],
     this.tags = const [],
     this.latitude,
     this.longitude,
@@ -132,8 +142,10 @@ class QueuedMemory {
     this.memoryLocationData,
     this.existingPhotoUrls = const [],
     this.existingVideoUrls = const [],
+    this.existingVideoPosterUrls = const [],
     this.deletedPhotoUrls = const [],
     this.deletedVideoUrls = const [],
+    this.deletedVideoPosterUrls = const [],
     this.version = currentVersion,
     this.inputTextChanged = false,
   });
@@ -162,6 +174,7 @@ class QueuedMemory {
       audioDuration: audioDuration,
       photoPaths: List.from(state.photoPaths),
       videoPaths: List.from(state.videoPaths),
+      videoPosterPaths: List<String?>.from(state.videoPosterPaths),
       tags: List.from(state.tags),
       latitude: state.latitude,
       longitude: state.longitude,
@@ -175,8 +188,12 @@ class QueuedMemory {
       memoryLocationData: _cloneMap(memoryLocationData),
       existingPhotoUrls: List.from(state.existingPhotoUrls),
       existingVideoUrls: List.from(state.existingVideoUrls),
+      existingVideoPosterUrls:
+          List<String?>.from(state.existingVideoPosterUrls),
       deletedPhotoUrls: List.from(state.deletedPhotoUrls),
       deletedVideoUrls: List.from(state.deletedVideoUrls),
+      deletedVideoPosterUrls:
+          List<String?>.from(state.deletedVideoPosterUrls),
       inputTextChanged: state.hasInputTextChanged,
     );
   }
@@ -198,6 +215,7 @@ class QueuedMemory {
       originalInputText: inputText,
       photoPaths: List.from(photoPaths),
       videoPaths: List.from(videoPaths),
+      videoPosterPaths: List<String?>.from(videoPosterPaths),
       tags: List.from(tags),
       latitude: latitude,
       longitude: longitude,
@@ -211,8 +229,12 @@ class QueuedMemory {
       memoryLocationLongitude: memoryLocationLongitude,
       existingPhotoUrls: List.from(existingPhotoUrls),
       existingVideoUrls: List.from(existingVideoUrls),
+      existingVideoPosterUrls:
+          List<String?>.from(existingVideoPosterUrls),
       deletedPhotoUrls: List.from(deletedPhotoUrls),
       deletedVideoUrls: List.from(deletedVideoUrls),
+      deletedVideoPosterUrls:
+          List<String?>.from(deletedVideoPosterUrls),
       editingMemoryId: isUpdate ? targetMemoryId : null,
       originalEditingMemoryId: isUpdate ? targetMemoryId : null,
     );
@@ -253,14 +275,30 @@ class QueuedMemory {
         .map((url) => url.replaceFirst('file://', ''))
         .where((path) => !state.deletedPhotoUrls.contains('file://$path'))
         .toList();
-    final existingVideoPaths = state.existingVideoUrls
-        .map((url) => url.replaceFirst('file://', ''))
-        .where((path) => !state.deletedVideoUrls.contains('file://$path'))
-        .toList();
+    final existingVideoPaths = <String>[];
+    final existingVideoPosterPaths = <String?>[];
+    for (var i = 0; i < state.existingVideoUrls.length; i++) {
+      final videoUrl = state.existingVideoUrls[i];
+      final normalizedPath = videoUrl.replaceFirst('file://', '');
+      final shouldDelete =
+          state.deletedVideoUrls.contains('file://$normalizedPath');
+      if (shouldDelete) {
+        continue;
+      }
+      existingVideoPaths.add(normalizedPath);
+      final posterUrl = i < state.existingVideoPosterUrls.length
+          ? state.existingVideoPosterUrls[i]
+          : null;
+      existingVideoPosterPaths.add(posterUrl);
+    }
 
     // Combine existing (non-deleted) with new paths
     final allPhotoPaths = [...existingPhotoPaths, ...state.photoPaths];
     final allVideoPaths = [...existingVideoPaths, ...state.videoPaths];
+    final allVideoPosterPaths = [
+      ...existingVideoPosterPaths,
+      ...state.videoPosterPaths
+    ];
 
     // Preserve audio fields for stories
     final preservedAudioPath = memoryType == 'story' ? audioPath : null;
@@ -278,6 +316,7 @@ class QueuedMemory {
       audioDuration: preservedAudioDuration,
       photoPaths: allPhotoPaths,
       videoPaths: allVideoPaths,
+      videoPosterPaths: allVideoPosterPaths,
       tags: List.from(state.tags),
       latitude: state.latitude,
       longitude: state.longitude,
@@ -295,8 +334,12 @@ class QueuedMemory {
       memoryLocationData: updatedMemoryLocationData,
       existingPhotoUrls: List.from(state.existingPhotoUrls),
       existingVideoUrls: List.from(state.existingVideoUrls),
+      existingVideoPosterUrls:
+          List<String?>.from(state.existingVideoPosterUrls),
       deletedPhotoUrls: List.from(state.deletedPhotoUrls),
       deletedVideoUrls: List.from(state.deletedVideoUrls),
+      deletedVideoPosterUrls:
+          List<String?>.from(state.deletedVideoPosterUrls),
       version: version,
       inputTextChanged: state.hasInputTextChanged,
     );
@@ -312,6 +355,7 @@ class QueuedMemory {
     double? audioDuration,
     List<String>? photoPaths,
     List<String>? videoPaths,
+    List<String?>? videoPosterPaths,
     List<String>? tags,
     double? latitude,
     double? longitude,
@@ -330,8 +374,10 @@ class QueuedMemory {
     Map<String, dynamic>? memoryLocationData,
     List<String>? existingPhotoUrls,
     List<String>? existingVideoUrls,
+    List<String?>? existingVideoPosterUrls,
     List<String>? deletedPhotoUrls,
     List<String>? deletedVideoUrls,
+    List<String?>? deletedVideoPosterUrls,
   }) {
     return QueuedMemory(
       localId: localId ?? this.localId,
@@ -341,6 +387,7 @@ class QueuedMemory {
       audioDuration: audioDuration ?? this.audioDuration,
       photoPaths: photoPaths ?? this.photoPaths,
       videoPaths: videoPaths ?? this.videoPaths,
+      videoPosterPaths: videoPosterPaths ?? this.videoPosterPaths,
       tags: tags ?? this.tags,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
@@ -361,8 +408,12 @@ class QueuedMemory {
           : this.memoryLocationData,
       existingPhotoUrls: existingPhotoUrls ?? this.existingPhotoUrls,
       existingVideoUrls: existingVideoUrls ?? this.existingVideoUrls,
+      existingVideoPosterUrls:
+          existingVideoPosterUrls ?? this.existingVideoPosterUrls,
       deletedPhotoUrls: deletedPhotoUrls ?? this.deletedPhotoUrls,
       deletedVideoUrls: deletedVideoUrls ?? this.deletedVideoUrls,
+      deletedVideoPosterUrls:
+          deletedVideoPosterUrls ?? this.deletedVideoPosterUrls,
       inputTextChanged: inputTextChanged ?? this.inputTextChanged,
     );
   }
@@ -393,6 +444,7 @@ class QueuedMemory {
       'audioDuration': audioDuration,
       'photoPaths': photoPaths,
       'videoPaths': videoPaths,
+      'videoPosterPaths': videoPosterPaths,
       'tags': tags,
       'latitude': latitude,
       'longitude': longitude,
@@ -410,8 +462,10 @@ class QueuedMemory {
       'memoryLocationData': memoryLocationData,
       'existingPhotoUrls': existingPhotoUrls,
       'existingVideoUrls': existingVideoUrls,
+      'existingVideoPosterUrls': existingVideoPosterUrls,
       'deletedPhotoUrls': deletedPhotoUrls,
       'deletedVideoUrls': deletedVideoUrls,
+      'deletedVideoPosterUrls': deletedVideoPosterUrls,
       'inputTextChanged': inputTextChanged,
     };
   }
@@ -429,6 +483,8 @@ class QueuedMemory {
       audioDuration: (json['audioDuration'] as num?)?.toDouble(),
       photoPaths: List<String>.from(json['photoPaths'] as List? ?? []),
       videoPaths: List<String>.from(json['videoPaths'] as List? ?? []),
+      videoPosterPaths:
+          List<String?>.from(json['videoPosterPaths'] as List? ?? []),
       tags: List<String>.from(json['tags'] as List? ?? []),
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
@@ -454,10 +510,14 @@ class QueuedMemory {
           List<String>.from(json['existingPhotoUrls'] as List? ?? []),
       existingVideoUrls:
           List<String>.from(json['existingVideoUrls'] as List? ?? []),
+      existingVideoPosterUrls:
+          List<String?>.from(json['existingVideoPosterUrls'] as List? ?? []),
       deletedPhotoUrls:
           List<String>.from(json['deletedPhotoUrls'] as List? ?? []),
       deletedVideoUrls:
           List<String>.from(json['deletedVideoUrls'] as List? ?? []),
+      deletedVideoPosterUrls:
+          List<String?>.from(json['deletedVideoPosterUrls'] as List? ?? []),
       inputTextChanged: json['inputTextChanged'] as bool? ?? false,
     );
   }

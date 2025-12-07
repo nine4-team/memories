@@ -24,6 +24,9 @@ import 'package:memories/models/location_suggestion.dart';
 import 'package:memories/services/location_suggestion_service.dart';
 import 'package:memories/services/connectivity_service.dart';
 import 'package:memories/screens/memory/memory_detail_screen.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 /// Unified capture screen for creating Moments, Stories, and Mementos
 ///
@@ -44,6 +47,7 @@ class CaptureScreen extends ConsumerStatefulWidget {
 class _CaptureScreenState extends ConsumerState<CaptureScreen> {
   final _descriptionController = TextEditingController();
   bool _isSaving = false;
+  bool _isPickingVideo = false;
   bool _showSuccessCheckmark = false;
   bool _hasInitializedDescription = false;
   bool _isDescriptionFieldFocused = false;
@@ -223,13 +227,38 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
 
     if (source == null) return;
 
+    if (mounted) {
+      setState(() {
+        _isPickingVideo = true;
+      });
+    }
+
     try {
       final path = source == ImageSource.camera
           ? await mediaPicker.pickVideoFromCamera()
           : await mediaPicker.pickVideoFromGallery();
 
       if (path != null && mounted) {
-        notifier.addVideo(path);
+        // Generate video poster thumbnail
+        String? posterPath;
+        try {
+          final tempDir = await getTemporaryDirectory();
+          final thumbnailPath = await VideoThumbnail.thumbnailFile(
+            video: path,
+            thumbnailPath: tempDir.path,
+            imageFormat: ImageFormat.JPEG,
+            quality: 85,
+            timeMs: 1000, // Extract frame at 1 second
+          );
+          if (thumbnailPath != null && File(thumbnailPath).existsSync()) {
+            posterPath = thumbnailPath;
+          }
+        } catch (e) {
+          // Log error but don't fail video addition - poster is optional
+          debugPrint('[CaptureScreen] Failed to generate video poster: $e');
+        }
+        
+        notifier.addVideo(path, posterPath: posterPath);
       }
     } on MediaPickerException catch (e) {
       if (mounted) {
@@ -250,6 +279,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
             duration: const Duration(seconds: 3),
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPickingVideo = false;
+        });
       }
     }
   }
@@ -652,6 +687,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
         '[CaptureScreen.build] ${buildStartTime.toIso8601String()} START');
 
     final state = ref.watch(captureStateNotifierProvider);
+    final canTapAddVideo = state.canAddVideo && !_isPickingVideo;
     debugPrint(
         '[CaptureScreen.build] ${DateTime.now().toIso8601String()} after watch provider (${DateTime.now().difference(buildStartTime).inMilliseconds}ms)');
 
@@ -810,7 +846,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                       color: Colors.transparent,
                                       shape: const CircleBorder(),
                                       child: InkWell(
-                                        onTap: state.canAddVideo
+                                        onTap: canTapAddVideo
                                             ? _handleAddVideo
                                             : null,
                                         customBorder: const CircleBorder(),
@@ -822,7 +858,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                           child: Icon(
                                             Icons.videocam,
                                             size: 18,
-                                            color: state.canAddVideo
+                                            color: canTapAddVideo
                                                 ? Theme.of(context)
                                                     .colorScheme
                                                     .onSurface
@@ -887,6 +923,15 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                               ],
                             ),
                             const SizedBox(height: 16),
+                            if (_isPickingVideo)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 5),
+                                child: const _VideoSelectionProgressBanner(
+                                  message: 'Preparing video preview...',
+                                ),
+                              ),
+                            if (_isPickingVideo) const SizedBox(height: 12),
 
                             // Combined container for tags and media
                             if (state.photoPaths.isNotEmpty ||
@@ -928,10 +973,14 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                         child: MediaTray(
                                           photoPaths: state.photoPaths,
                                           videoPaths: state.videoPaths,
+                                          videoPosterPaths:
+                                              state.videoPosterPaths,
                                           existingPhotoUrls:
                                               state.existingPhotoUrls,
                                           existingVideoUrls:
                                               state.existingVideoUrls,
+                                          existingVideoPosterUrls:
+                                              state.existingVideoPosterUrls,
                                           onPhotoRemoved: (index) =>
                                               notifier.removePhoto(index),
                                           onVideoRemoved: (index) =>
@@ -2942,6 +2991,53 @@ class _AddTagDialogState extends State<_AddTagDialog> {
           child: const Text('Add'),
         ),
       ],
+    );
+  }
+}
+
+class _VideoSelectionProgressBanner extends StatelessWidget {
+  final String message;
+
+  const _VideoSelectionProgressBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Semantics(
+      label: 'Video preparation in progress',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

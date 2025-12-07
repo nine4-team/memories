@@ -16,11 +16,17 @@ class MediaTray extends ConsumerWidget {
   /// List of video file paths (new media)
   final List<String> videoPaths;
 
+  /// List of generated video poster file paths aligned with [videoPaths]
+  final List<String?> videoPosterPaths;
+
   /// List of existing photo URLs (from Supabase Storage)
   final List<String> existingPhotoUrls;
 
   /// List of existing video URLs (from Supabase Storage)
   final List<String> existingVideoUrls;
+
+  /// List of existing video poster URLs aligned with [existingVideoUrls]
+  final List<String?> existingVideoPosterUrls;
 
   /// Callback when a photo should be removed (new media)
   final ValueChanged<int> onPhotoRemoved;
@@ -44,10 +50,12 @@ class MediaTray extends ConsumerWidget {
     super.key,
     required this.photoPaths,
     required this.videoPaths,
+    this.videoPosterPaths = const [],
     required this.onPhotoRemoved,
     required this.onVideoRemoved,
     this.existingPhotoUrls = const [],
     this.existingVideoUrls = const [],
+    this.existingVideoPosterUrls = const [],
     this.onExistingPhotoRemoved,
     this.onExistingVideoRemoved,
     required this.canAddPhoto,
@@ -104,6 +112,9 @@ class MediaTray extends ConsumerWidget {
               url: existingVideoUrls[existingVideoIndex],
               isVideo: true,
               isExisting: true,
+              posterUrl: existingVideoPosterUrls.length > existingVideoIndex
+                  ? existingVideoPosterUrls[existingVideoIndex]
+                  : null,
               onRemoved: onExistingVideoRemoved != null
                   ? () => onExistingVideoRemoved!(existingVideoIndex)
                   : null,
@@ -119,6 +130,9 @@ class MediaTray extends ConsumerWidget {
               filePath: videoPaths[videoIndex],
               isVideo: true,
               isExisting: false,
+              posterFilePath: videoPosterPaths.length > videoIndex
+                  ? videoPosterPaths[videoIndex]
+                  : null,
               onRemoved: () => onVideoRemoved(videoIndex),
             );
           }
@@ -135,6 +149,8 @@ class _MediaThumbnail extends ConsumerStatefulWidget {
   final bool
       isExisting; // Whether this is existing media (URL) or new media (file path)
   final VoidCallback? onRemoved;
+  final String? posterFilePath;
+  final String? posterUrl;
 
   const _MediaThumbnail({
     this.filePath,
@@ -142,6 +158,8 @@ class _MediaThumbnail extends ConsumerStatefulWidget {
     required this.isVideo,
     required this.isExisting,
     this.onRemoved,
+    this.posterFilePath,
+    this.posterUrl,
   }) : assert(
           (filePath != null && url == null) ||
               (filePath == null && url != null),
@@ -154,12 +172,25 @@ class _MediaThumbnail extends ConsumerStatefulWidget {
 
 class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
   VideoPlayerController? _videoController;
+  Future<String>? _posterUrlFuture;
 
   @override
   void initState() {
     super.initState();
     if (widget.isVideo) {
       _initializeVideo();
+      _initializePosterFuture();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _MediaThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isVideo &&
+        widget.isExisting &&
+        oldWidget.posterUrl != widget.posterUrl) {
+      _posterUrlFuture = null;
+      _initializePosterFuture();
     }
   }
 
@@ -181,6 +212,32 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
     } catch (e) {
       // Handle error - show placeholder
     }
+  }
+
+  void _initializePosterFuture() {
+    if (!widget.isVideo || !widget.isExisting) {
+      return;
+    }
+    if (widget.posterUrl == null) {
+      _posterUrlFuture = null;
+      return;
+    }
+    if (_posterUrlFuture != null) {
+      return;
+    }
+    final supabaseUrl = ref.read(supabaseUrlProvider);
+    final supabaseAnonKey = ref.read(supabaseAnonKeyProvider);
+    final imageCache = ref.read(timelineImageCacheServiceProvider);
+    final accessToken =
+        ref.read(supabaseClientProvider).auth.currentSession?.accessToken;
+
+    _posterUrlFuture = imageCache.getSignedUrlForDetailView(
+      supabaseUrl,
+      supabaseAnonKey,
+      'memories-photos',
+      widget.posterUrl!,
+      accessToken: accessToken,
+    );
   }
 
   @override
@@ -224,13 +281,13 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
                     width: 24,
                     height: 24,
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
+                      color: overlayBackgroundColor,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.close,
                       size: 16,
-                      color: Colors.white,
+                      color: overlayColor,
                     ),
                   ),
                 ),
@@ -345,9 +402,38 @@ class _MediaThumbnailState extends ConsumerState<_MediaThumbnail> {
   Widget _buildVideoPreview() {
     final theme = Theme.of(context);
 
-    // For existing videos (online), always show placeholder
-    // For local videos, show video player if initialized, otherwise placeholder
+    // For existing videos (online), show poster if available
     if (widget.isExisting) {
+      if (_posterUrlFuture != null) {
+        return FutureBuilder<String>(
+          future: _posterUrlFuture!,
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              return Image.network(
+                snapshot.data!,
+                fit: BoxFit.cover,
+                width: 100,
+                height: 100,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child: const Center(
+                      child: Icon(Icons.videocam, size: 32),
+                    ),
+                  );
+                },
+              );
+            }
+            return Container(
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            );
+          },
+        );
+      }
+      // No poster URL available, show placeholder
       return Container(
         color: theme.colorScheme.surfaceContainerHighest,
         child: const Center(

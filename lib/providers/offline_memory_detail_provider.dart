@@ -61,11 +61,19 @@ class OfflineMemoryDetailNotifier extends _$OfflineMemoryDetailNotifier {
       final path = entry.value.replaceFirst('file://', '');
       final normalizedPath =
           path.startsWith('/') ? 'file://$path' : 'file:///$path';
+      final posterPath = entry.key < queued.videoPosterPaths.length
+          ? queued.videoPosterPaths[entry.key]
+          : null;
+      final normalizedPoster = posterPath == null || posterPath.isEmpty
+          ? null
+          : posterPath.startsWith('file://')
+              ? posterPath
+              : 'file://$posterPath';
       return VideoMedia(
         url: normalizedPath,
         index: entry.key,
         duration: null,
-        posterUrl: null,
+        posterUrl: normalizedPoster,
         caption: null,
         source: MediaSource.localFile,
       );

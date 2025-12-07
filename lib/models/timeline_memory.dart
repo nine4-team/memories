@@ -296,12 +296,14 @@ class PrimaryMedia {
   final String url; // Supabase Storage path or local file path
   final int index;
   final MediaSource source;
+  final String? posterUrl;
 
   PrimaryMedia({
     required this.type,
     required this.url,
     required this.index,
     this.source = MediaSource.supabaseStorage,
+    this.posterUrl,
   });
 
   bool get isLocal => source == MediaSource.localFile;
@@ -317,6 +319,7 @@ class PrimaryMedia {
       url: json['url'] as String,
       index: json['index'] as int,
       source: source,
+      posterUrl: json['poster_url'] as String?,
     );
   }
 
@@ -327,6 +330,7 @@ class PrimaryMedia {
       'index': index,
       'source':
           source == MediaSource.localFile ? 'localFile' : 'supabaseStorage',
+      'poster_url': posterUrl,
     };
   }
 

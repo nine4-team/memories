@@ -1347,6 +1347,9 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
         detail.photos.map((p) => p.url.replaceFirst('file://', '')).toList();
     final videoPaths =
         detail.videos.map((v) => v.url.replaceFirst('file://', '')).toList();
+    final videoPosterPaths = detail.videos
+        .map((v) => v.posterUrl?.replaceFirst('file://', ''))
+        .toList();
 
     // Determine memory type
     final memoryType = MemoryTypeExtension.fromApiValue(detail.memoryType);
@@ -1358,6 +1361,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
       tags: detail.tags,
       existingPhotoPaths: photoPaths,
       existingVideoPaths: videoPaths,
+      existingVideoPosterPaths: videoPosterPaths,
       latitude: detail.locationData?.latitude,
       longitude: detail.locationData?.longitude,
       locationStatus: detail.locationData?.status,
@@ -1390,6 +1394,8 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
     // Extract existing media URLs
     final existingPhotoUrls = memory.photos.map((p) => p.url).toList();
     final existingVideoUrls = memory.videos.map((v) => v.url).toList();
+    final existingVideoPosterUrls =
+        memory.videos.map((v) => v.posterUrl).toList();
 
     captureNotifier.loadMemoryForEdit(
       memoryId: memory.id,
@@ -1402,6 +1408,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
       locationStatus: memory.locationData?.status,
       existingPhotoUrls: existingPhotoUrls,
       existingVideoUrls: existingVideoUrls,
+      existingVideoPosterUrls: existingVideoPosterUrls,
       memoryDate: memory.memoryDate,
     );
 

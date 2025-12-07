@@ -26,6 +26,18 @@ PODS:
   - just_audio (0.0.1):
     - Flutter
     - FlutterMacOS
+  - libwebp (1.5.0):
+    - libwebp/demux (= 1.5.0)
+    - libwebp/mux (= 1.5.0)
+    - libwebp/sharpyuv (= 1.5.0)
+    - libwebp/webp (= 1.5.0)
+  - libwebp/demux (1.5.0):
+    - libwebp/webp
+  - libwebp/mux (1.5.0):
+    - libwebp/demux
+  - libwebp/sharpyuv (1.5.0)
+  - libwebp/webp (1.5.0):
+    - libwebp/sharpyuv
   - local_auth_darwin (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -46,6 +58,9 @@ PODS:
   - video_player_avfoundation (0.0.1):
     - Flutter
     - FlutterMacOS
+  - video_thumbnail (0.0.1):
+    - Flutter
+    - libwebp
 
 DEPENDENCIES:
   - app_links (from `.symlinks/plugins/app_links/ios`)
@@ -66,11 +81,13 @@ DEPENDENCIES:
   - speech_to_text (from `.symlinks/plugins/speech_to_text/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
   - video_player_avfoundation (from `.symlinks/plugins/video_player_avfoundation/darwin`)
+  - video_thumbnail (from `.symlinks/plugins/video_thumbnail/ios`)
 
 SPEC REPOS:
   trunk:
     - CwlCatchException
     - CwlCatchExceptionSupport
+    - libwebp
 
 EXTERNAL SOURCES:
   app_links:
@@ -109,6 +126,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
   video_player_avfoundation:
     :path: ".symlinks/plugins/video_player_avfoundation/darwin"
+  video_thumbnail:
+    :path: ".symlinks/plugins/video_thumbnail/ios"
 
 SPEC CHECKSUMS:
   app_links: 3dbc685f76b1693c66a6d9dd1e9ab6f73d97dc0a
@@ -124,6 +143,7 @@ SPEC CHECKSUMS:
   image_picker_ios: 7fe1ff8e34c1790d6fff70a32484959f563a928a
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
   just_audio: 4e391f57b79cad2b0674030a00453ca5ce817eed
+  libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
   local_auth_darwin: d2e8c53ef0c4f43c646462e3415432c4dab3ae19
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
   share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
@@ -131,6 +151,7 @@ SPEC CHECKSUMS:
   speech_to_text: 3b313d98516d3d0406cea424782ec25470c59d19
   url_launcher_ios: 694010445543906933d732453a59da0a173ae33d
   video_player_avfoundation: 2cef49524dd1f16c5300b9cd6efd9611ce03639b
+  video_thumbnail: b637e0ad5f588ca9945f6e2c927f73a69a661140
 
 PODFILE CHECKSUM: 0c9e96f2acef858c0374476a87a474ed002959d9
 

@@ -42,11 +42,21 @@ class OfflineQueueToTimelineAdapter {
         source: MediaSource.localFile,
       );
     } else if (queued.videoPaths.isNotEmpty) {
+      String? posterUrl;
+      if (queued.videoPosterPaths.isNotEmpty &&
+          queued.videoPosterPaths.first != null &&
+          queued.videoPosterPaths.first!.isNotEmpty) {
+        final rawPoster = queued.videoPosterPaths.first!;
+        posterUrl = rawPoster.startsWith('file://')
+            ? rawPoster
+            : 'file://$rawPoster';
+      }
       primaryMedia = PrimaryMedia(
         type: 'video',
         url: queued.videoPaths.first, // Local file path
         index: 0,
         source: MediaSource.localFile,
+        posterUrl: posterUrl,
       );
     } else if (queued.memoryType == 'story' && queued.audioPath != null) {
       // For stories, audio can be considered primary media

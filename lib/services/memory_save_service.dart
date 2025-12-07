@@ -95,6 +95,7 @@ class MemorySaveService {
       onProgress?.call(message: 'Uploading media...', progress: 0.1);
       final photoUrls = <String>[];
       final videoUrls = <String>[];
+      final videoPosterUrls = <String?>[];
 
       // Upload photos with retry logic
       for (int i = 0; i < state.photoPaths.length; i++) {
@@ -159,6 +160,9 @@ class MemorySaveService {
       // Upload videos with retry logic
       for (int i = 0; i < state.videoPaths.length; i++) {
         final videoPath = state.videoPaths[i];
+        final posterPath = i < state.videoPosterPaths.length
+            ? state.videoPosterPaths[i]
+            : null;
         final file = File(videoPath);
         if (!await file.exists()) {
           continue;
@@ -210,6 +214,13 @@ class MemorySaveService {
 
         videoUrls.add(publicUrl);
 
+        final posterUrl = await _uploadVideoPosterIfNeeded(
+          posterPath,
+          index: i,
+          total: state.videoPaths.length,
+        );
+        videoPosterUrls.add(posterUrl);
+
         onProgress?.call(
           message: 'Uploading videos... (${i + 1}/${state.videoPaths.length})',
           progress: 0.4 + (0.2 * (i + 1) / state.videoPaths.length),
@@ -235,6 +246,7 @@ class MemorySaveService {
             null, // LLM-processed text - stays NULL until processing completes
         'photo_urls': photoUrls,
         'video_urls': videoUrls,
+        'video_poster_urls': videoPosterUrls,
         'tags': state.tags,
         'memory_type': state.memoryType.apiValue,
         'location_status': state.locationStatus,
@@ -437,6 +449,7 @@ class MemorySaveService {
       onProgress?.call(message: 'Uploading new media...', progress: 0.1);
       final newPhotoUrls = <String>[];
       final newVideoUrls = <String>[];
+      final newVideoPosterUrls = <String?>[];
       int skippedPhotoUploads = 0;
       int skippedVideoUploads = 0;
 
@@ -502,6 +515,9 @@ class MemorySaveService {
       // Upload new videos with retry logic
       for (int i = 0; i < state.videoPaths.length; i++) {
         final videoPath = state.videoPaths[i];
+        final posterPath = i < state.videoPosterPaths.length
+            ? state.videoPosterPaths[i]
+            : null;
         final file = File(videoPath);
         if (!await file.exists()) {
           skippedVideoUploads++;
@@ -552,6 +568,12 @@ class MemorySaveService {
         }
 
         newVideoUrls.add(publicUrl);
+        final posterUrl = await _uploadVideoPosterIfNeeded(
+          posterPath,
+          index: i,
+          total: state.videoPaths.length,
+        );
+        newVideoPosterUrls.add(posterUrl);
         onProgress?.call(
           message: 'Uploading videos... (${i + 1}/${state.videoPaths.length})',
           progress: 0.4 + (0.2 * (i + 1) / state.videoPaths.length),
@@ -596,9 +618,31 @@ class MemorySaveService {
         }
       }
 
+      // Delete removed video posters
+      for (final posterUrl in state.deletedVideoPosterUrls) {
+        if (posterUrl == null) {
+          continue;
+        }
+        try {
+          final uri = Uri.parse(posterUrl);
+          final pathSegments = uri.pathSegments;
+          final bucketIndex = pathSegments.indexOf(_photosBucket);
+          if (bucketIndex != -1 && bucketIndex < pathSegments.length - 1) {
+            final storagePath = pathSegments.sublist(bucketIndex + 1).join('/');
+            await _supabase.storage.from(_photosBucket).remove([storagePath]);
+          }
+        } catch (e) {
+          print('Failed to delete video poster: $posterUrl - $e');
+        }
+      }
+
       // Step 3: Combine existing and new media URLs
       final allPhotoUrls = [...state.existingPhotoUrls, ...newPhotoUrls];
       final allVideoUrls = [...state.existingVideoUrls, ...newVideoUrls];
+      final allVideoPosterUrls = [
+        ...state.existingVideoPosterUrls,
+        ...newVideoPosterUrls
+      ];
       developer.log(
         '[MemorySaveService] updateMemory media summary '
         'memoryId=$memoryId '
@@ -621,6 +665,7 @@ class MemorySaveService {
         'input_text': state.inputText,
         'photo_urls': allPhotoUrls,
         'video_urls': allVideoUrls,
+        'video_poster_urls': allVideoPosterUrls,
         'tags': state.tags,
         'location_status': state.locationStatus,
         'updated_at': now.toIso8601String(),
@@ -793,6 +838,84 @@ class MemorySaveService {
       // Generic error
       throw SaveException('Failed to update memory: ${e.toString()}');
     }
+  }
+
+  Future<String?> _uploadVideoPosterIfNeeded(
+    String? posterPath, {
+    required int index,
+    required int total,
+  }) async {
+    if (posterPath == null || posterPath.isEmpty) {
+      return null;
+    }
+
+    final normalizedPath = _normalizeLocalPath(posterPath);
+    final file = File(normalizedPath);
+    if (!await file.exists()) {
+      return null;
+    }
+
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      return null;
+    }
+
+    final posterFileName =
+        '${DateTime.now().millisecondsSinceEpoch}_${index + 1}.jpg';
+    final storagePath = '$userId/video_posters/$posterFileName';
+
+    String? publicUrl;
+    Exception? lastError;
+
+    for (int attempt = 0; attempt < _maxRetries; attempt++) {
+      try {
+        await _supabase.storage
+            .from(_photosBucket)
+            .upload(
+              storagePath,
+              file,
+              fileOptions: const FileOptions(
+                upsert: false,
+                contentType: 'image/jpeg',
+              ),
+            )
+            .timeout(_uploadTimeout);
+
+        publicUrl =
+            _supabase.storage.from(_photosBucket).getPublicUrl(storagePath);
+        break;
+      } catch (e, stackTrace) {
+        lastError = e is Exception ? e : Exception(e.toString());
+        developer.log(
+          '[MemorySaveService] Video poster upload failed '
+          '(index=${index + 1}/$total, attempt=${attempt + 1})',
+          name: 'MemorySaveService',
+          error: e,
+          stackTrace: stackTrace,
+        );
+        if (attempt < _maxRetries - 1) {
+          final delay = Duration(seconds: 1 << attempt);
+          await Future.delayed(delay);
+        }
+      }
+    }
+
+    if (publicUrl == null && lastError != null) {
+      developer.log(
+        '[MemorySaveService] Failed to upload video poster after $_maxRetries attempts',
+        name: 'MemorySaveService',
+        error: lastError,
+      );
+    }
+
+    return publicUrl;
+  }
+
+  String _normalizeLocalPath(String path) {
+    if (path.startsWith('file://')) {
+      return path.replaceFirst('file://', '');
+    }
+    return path;
   }
 
   String _getFallbackTitle(MemoryType memoryType, String? text) {
