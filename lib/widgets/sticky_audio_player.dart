@@ -52,13 +52,6 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
   String? _errorMessage;
   double? _lastReportedHeight;
   bool _heightReportScheduled = false;
-  static const double _controlSectionHeight = 70.0;
-  static const double _loadingBannerHeight = 20.0;
-  static const double _bannerBottomPadding = 8.0;
-  static const double _paddingWithBanner = 12.0;
-  static const double _paddingWithoutBanner = 16.0;
-
-  bool get _hasBanner => _errorMessage != null || _isLoading || _isBuffering;
 
   @override
   void initState() {
@@ -72,32 +65,7 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
   void didUpdateWidget(covariant StickyAudioPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.audioUrl != oldWidget.audioUrl) {
-      // Avoid reloading the audio engine when only the signed token/query
-      // portion of a URL has changed. For Supabase signed URLs, the path
-      // component identifies the underlying object, while the query holds
-      // short‑lived auth metadata. We only reload when the effective path
-      // changes (including transitions between null/non‑null).
-      final newUrl = widget.audioUrl;
-      final oldUrl = oldWidget.audioUrl;
-
-      bool shouldReload = true;
-
-      if (newUrl != null && oldUrl != null) {
-        final newUri = Uri.tryParse(newUrl);
-        final oldUri = Uri.tryParse(oldUrl);
-        if (newUri != null &&
-            oldUri != null &&
-            newUri.scheme == oldUri.scheme &&
-            newUri.host == oldUri.host &&
-            newUri.path == oldUri.path) {
-          // Same underlying resource; ignore token/expiry/query differences.
-          shouldReload = false;
-        }
-      }
-
-      if (shouldReload) {
-        _loadAudioSource();
-      }
+      _loadAudioSource();
     }
     if (widget.enablePositionUpdates != oldWidget.enablePositionUpdates) {
       _startPositionSubscription();
@@ -162,21 +130,13 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
       );
     }
 
-    final hasBanner = _hasBanner;
-    final verticalPadding =
-        hasBanner ? _paddingWithBanner : _paddingWithoutBanner;
-    final horizontalPadding = 16.0;
-
     return Semantics(
       label: 'Audio player for story',
       hint: 'Use play/pause button to control playback, use slider to seek',
       child: Focus(
         autofocus: false,
         child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: verticalPadding,
-          ),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(12),
@@ -191,194 +151,205 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
               ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_errorMessage != null)
-                _AudioErrorBanner(
-                  message: _errorMessage!,
-                  onRetry:
-                      widget.audioUrl != null ? () => _loadAudioSource() : null,
-                )
-              else if (_isLoading || _isBuffering)
-                _AudioLoadingBanner(isBuffering: _isBuffering),
-              // Play/pause button and time display row
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Play/pause button - 48x48px meets accessibility requirements
-                  Semantics(
-                    label: _isPlaying
-                        ? 'Pause audio playback'
-                        : 'Play audio playback',
-                    hint: _isPlaying
-                        ? 'Double tap to pause'
-                        : 'Double tap to play',
-                    button: true,
-                    child: Material(
-                      color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(24),
-                      child: InkWell(
+          child: IntrinsicHeight(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _AudioErrorBanner(
+                      message: _errorMessage!,
+                      onRetry: widget.audioUrl != null
+                          ? () => _loadAudioSource()
+                          : null,
+                    ),
+                  )
+                else if (_isLoading || _isBuffering)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _AudioLoadingBanner(isBuffering: _isBuffering),
+                  ),
+                // Play/pause button and time display row
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Play/pause button - 48x48px meets accessibility requirements
+                    Semantics(
+                      label: _isPlaying
+                          ? 'Pause audio playback'
+                          : 'Play audio playback',
+                      hint: _isPlaying
+                          ? 'Double tap to pause'
+                          : 'Double tap to play',
+                      button: true,
+                      child: Material(
+                        color: theme.colorScheme.primary,
                         borderRadius: BorderRadius.circular(24),
-                        onTap: (_errorMessage == null &&
-                                !_isLoading &&
-                                widget.audioUrl != null)
-                            ? _togglePlayPause
-                            : null,
-                        child: Opacity(
-                          opacity: (_errorMessage == null &&
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(24),
+                          onTap: (_errorMessage == null &&
                                   !_isLoading &&
                                   widget.audioUrl != null)
-                              ? 1.0
-                              : 0.5,
-                          child: Container(
-                            width: 48,
-                            height: 48,
-                            alignment: Alignment.center,
-                            child: Icon(
-                              _isPlaying ? Icons.pause : Icons.play_arrow,
-                              color: theme.colorScheme.onPrimary,
-                              size: 24,
+                              ? _togglePlayPause
+                              : null,
+                          child: Opacity(
+                            opacity: (_errorMessage == null &&
+                                    !_isLoading &&
+                                    widget.audioUrl != null)
+                                ? 1.0
+                                : 0.5,
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              alignment: Alignment.center,
+                              child: Icon(
+                                _isPlaying ? Icons.pause : Icons.play_arrow,
+                                color: theme.colorScheme.onPrimary,
+                                size: 24,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  SizedBox(width: hasBanner ? 12 : 16),
-                  // Time display and scrubber
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Progress slider - accessible for screen readers
-                        Semantics(
-                          label: 'Audio progress',
-                          value: effectiveDuration != null
-                              ? '${_formatDuration(_currentPosition)} of ${_formatDuration(effectiveDuration)}'
-                              : '${_formatDuration(_currentPosition)}',
-                          child: SliderTheme(
-                            data: SliderTheme.of(context).copyWith(
-                              trackHeight: 2.0,
-                              thumbShape: const RoundSliderThumbShape(
-                                enabledThumbRadius: 6.0,
+                    const SizedBox(width: 16),
+                    // Time display and scrubber
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Progress slider - accessible for screen readers
+                          Semantics(
+                            label: 'Audio progress',
+                            value: effectiveDuration != null
+                                ? '${_formatDuration(_currentPosition)} of ${_formatDuration(effectiveDuration)}'
+                                : '${_formatDuration(_currentPosition)}',
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 2.0,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 6.0,
+                                ),
+                                overlayShape: const RoundSliderOverlayShape(
+                                  overlayRadius: 14.0,
+                                ),
                               ),
-                              overlayShape: const RoundSliderOverlayShape(
-                                overlayRadius: 14.0,
+                              child: Slider(
+                                value: _currentPosition.clamp(
+                                    0.0, effectiveDuration ?? 1.0),
+                                max: effectiveDuration ?? 1.0,
+                                onChanged: effectiveDuration != null
+                                    ? (value) {
+                                        setState(() {
+                                          _currentPosition = value;
+                                        });
+                                      }
+                                    : null, // Disable slider when duration is unknown
+                                onChangeEnd: effectiveDuration != null
+                                    ? (value) => _seekTo(value)
+                                    : null,
+                                activeColor: theme.colorScheme.primary,
+                                inactiveColor: theme.colorScheme.surfaceVariant,
                               ),
-                            ),
-                            child: Slider(
-                              value: _currentPosition.clamp(
-                                  0.0, effectiveDuration ?? 1.0),
-                              max: effectiveDuration ?? 1.0,
-                              onChanged: effectiveDuration != null
-                                  ? (value) {
-                                      setState(() {
-                                        _currentPosition = value;
-                                      });
-                                    }
-                                  : null, // Disable slider when duration is unknown
-                              onChangeEnd: effectiveDuration != null
-                                  ? (value) => _seekTo(value)
-                                  : null,
-                              activeColor: theme.colorScheme.primary,
-                              inactiveColor: theme.colorScheme.surfaceVariant,
                             ),
                           ),
-                        ),
-                        // Current position / Duration
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _formatDuration(_currentPosition),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
+                          // Current position / Duration
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 4.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _formatDuration(_currentPosition),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
                                 ),
+                                Text(
+                                  effectiveDuration != null
+                                      ? _formatDuration(effectiveDuration)
+                                      : '?:??',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Playback speed button - accessible with proper labels
+                    SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Center(
+                        child: Semantics(
+                          label: 'Playback speed: ${_playbackSpeed}x',
+                          hint: 'Double tap to change playback speed',
+                          button: true,
+                          child: PopupMenuButton<double>(
+                            tooltip: 'Change playback speed',
+                            padding: EdgeInsets.zero,
+                            icon: Text(
+                              '${_playbackSpeed}x',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w600,
                               ),
-                              Text(
-                                effectiveDuration != null
-                                    ? _formatDuration(effectiveDuration)
-                                    : '?:??',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
+                            ),
+                            onSelected: (speed) => _setPlaybackSpeed(speed),
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 0.5,
+                                child: Semantics(
+                                    label: 'Playback speed 0.5x',
+                                    child: const Text('0.5x')),
+                              ),
+                              PopupMenuItem(
+                                value: 0.75,
+                                child: Semantics(
+                                    label: 'Playback speed 0.75x',
+                                    child: const Text('0.75x')),
+                              ),
+                              PopupMenuItem(
+                                value: 1.0,
+                                child: Semantics(
+                                    label: 'Playback speed 1x',
+                                    child: const Text('1x')),
+                              ),
+                              PopupMenuItem(
+                                value: 1.25,
+                                child: Semantics(
+                                    label: 'Playback speed 1.25x',
+                                    child: const Text('1.25x')),
+                              ),
+                              PopupMenuItem(
+                                value: 1.5,
+                                child: Semantics(
+                                    label: 'Playback speed 1.5x',
+                                    child: const Text('1.5x')),
+                              ),
+                              PopupMenuItem(
+                                value: 2.0,
+                                child: Semantics(
+                                    label: 'Playback speed 2x',
+                                    child: const Text('2x')),
                               ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: hasBanner ? 12 : 16),
-                  // Playback speed button - accessible with proper labels
-                  SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: Center(
-                      child: Semantics(
-                        label: 'Playback speed: ${_playbackSpeed}x',
-                        hint: 'Double tap to change playback speed',
-                        button: true,
-                        child: PopupMenuButton<double>(
-                          tooltip: 'Change playback speed',
-                          padding: EdgeInsets.zero,
-                          icon: Text(
-                            '${_playbackSpeed}x',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          onSelected: (speed) => _setPlaybackSpeed(speed),
-                          itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: 0.5,
-                              child: Semantics(
-                                  label: 'Playback speed 0.5x',
-                                  child: const Text('0.5x')),
-                            ),
-                            PopupMenuItem(
-                              value: 0.75,
-                              child: Semantics(
-                                  label: 'Playback speed 0.75x',
-                                  child: const Text('0.75x')),
-                            ),
-                            PopupMenuItem(
-                              value: 1.0,
-                              child: Semantics(
-                                  label: 'Playback speed 1x',
-                                  child: const Text('1x')),
-                            ),
-                            PopupMenuItem(
-                              value: 1.25,
-                              child: Semantics(
-                                  label: 'Playback speed 1.25x',
-                                  child: const Text('1.25x')),
-                            ),
-                            PopupMenuItem(
-                              value: 1.5,
-                              child: Semantics(
-                                  label: 'Playback speed 1.5x',
-                                  child: const Text('1.5x')),
-                            ),
-                            PopupMenuItem(
-                              value: 2.0,
-                              child: Semantics(
-                                  label: 'Playback speed 2x',
-                                  child: const Text('2x')),
-                            ),
-                          ],
-                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -400,7 +371,11 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
     if (!mounted || widget.onHeightChanged == null) {
       return;
     }
-    final height = _estimateHeight();
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) {
+      return;
+    }
+    final height = renderBox.size.height;
     if (!height.isFinite || height <= 0) {
       return;
     }
@@ -409,18 +384,6 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
       _lastReportedHeight = height;
       widget.onHeightChanged!(height);
     }
-  }
-
-  double _estimateHeight() {
-    final verticalPadding =
-        _hasBanner ? _paddingWithBanner : _paddingWithoutBanner;
-    final bannerHeight = _hasBanner ? _loadingBannerHeight : 0.0;
-    final footerSpacing = _hasBanner ? _bannerBottomPadding : 0.0;
-    return verticalPadding +
-        bannerHeight +
-        footerSpacing +
-        _controlSectionHeight +
-        verticalPadding;
   }
 
   Future<void> _togglePlayPause() async {
@@ -607,30 +570,26 @@ class _AudioLoadingBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: theme.colorScheme.primary,
+    return Row(
+      children: [
+        SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            isBuffering ? 'Buffering audio…' : 'Loading audio…',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              isBuffering ? 'Buffering audio…' : 'Loading audio…',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -647,40 +606,28 @@ class _AudioErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(
-            Icons.warning_amber_rounded,
-            color: theme.colorScheme.error,
-            size: 16,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 12,
-              ),
+    return Row(
+      children: [
+        Icon(
+          Icons.warning_amber_rounded,
+          color: theme.colorScheme.error,
+          size: 20,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            message,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          if (onRetry != null)
-            TextButton(
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              onPressed: () => onRetry!(),
-              child: const Text(
-                'Retry',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
-        ],
-      ),
+        ),
+        if (onRetry != null)
+          TextButton(
+            onPressed: () => onRetry!(),
+            child: const Text('Retry'),
+          ),
+      ],
     );
   }
 }

@@ -2069,7 +2069,7 @@ class _StoryAudioPlayerSliver extends ConsumerStatefulWidget {
 
 class _StoryAudioPlayerSliverState
     extends ConsumerState<_StoryAudioPlayerSliver> {
-  static const double _minHeight = 80.0;
+  static const double _minHeight = 120.0;
   static const double _maxHeight = 200.0;
 
   double _currentHeight = _minHeight;
@@ -2124,13 +2124,13 @@ class _StickyAudioPlayerDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    // The child (StickyAudioPlayer) already has its own padding and styling
-    // We just need to constrain the height and provide a background
-    return SizedBox(
-      height: height,
-      child: Container(
-        width: double.infinity,
-        color: Theme.of(context).scaffoldBackgroundColor,
+    // The child (StickyAudioPlayer) sizes itself naturally
+    // We provide the container background and let the widget expand as needed
+    return Container(
+      width: double.infinity,
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: Align(
+        alignment: Alignment.topCenter,
         child: child,
       ),
     );
