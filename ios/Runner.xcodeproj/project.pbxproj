@@ -479,7 +479,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.memories.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.memories.app.beta;
 				PRODUCT_NAME = Memories;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -497,7 +497,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.memories.appTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.memories.app.betaTests;
 				PRODUCT_NAME = MemoriesTests;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -515,7 +515,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.memories.appTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.memories.app.betaTests;
 				PRODUCT_NAME = MemoriesTests;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Memories.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Memories";
@@ -531,7 +531,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.memories.appTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.memories.app.betaTests;
 				PRODUCT_NAME = MemoriesTests;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Memories.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Memories";
@@ -666,7 +666,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.memories.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.memories.app.beta;
 				PRODUCT_NAME = Memories;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -692,7 +692,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.memories.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.memories.app.beta;
 				PRODUCT_NAME = Memories;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";

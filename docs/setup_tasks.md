@@ -53,15 +53,15 @@ Set these environment variables in your Flutter build configuration:
 
 **For this project (`cgppebaekutbacvuaioa`):**
 
-You need to add redirect URLs based on your app's bundle ID/package name. Replace `YOUR_BUNDLE_ID` with your actual bundle ID (e.g., `com.memories.app`):
+You need to add redirect URLs based on your app's bundle ID/package name. Replace `YOUR_BUNDLE_ID` with your actual bundle ID (e.g., `com.memories.app.beta`):
 
 **For Development:**
-- `com.memories.app://auth-callback` (for the mobile app builds; this deep link must match `lib/services/google_oauth_service.dart`/your app bundle ID so the native redirect can resume the session)
-- `YOUR_BUNDLE_ID://auth-callback` (add this if your bundle ID differs from `com.memories.app`)
+- `com.memories.app.beta://auth-callback` (for the mobile app builds; this deep link must match `lib/services/google_oauth_service.dart`/your app bundle ID so the native redirect can resume the session)
+- `YOUR_BUNDLE_ID://auth-callback` (add this if your bundle ID differs from `com.memories.app.beta`)
 - `http://localhost:3000/auth/callback` (only add when you are running the Flutter web version locally—use this redirect for browser-based OAuth flows during web testing)
 
 **For Production:**
-- `YOUR_BUNDLE_ID://auth-callback` (iOS - e.g., `com.memories.app://auth-callback`)
+- `YOUR_BUNDLE_ID://auth-callback` (iOS - e.g., `com.memories.app.beta://auth-callback`)
 - `YOUR_BUNDLE_ID://auth-callback` (Android - same format)
 - `https://yourdomain.com/auth/callback` (if supporting web)
 
@@ -70,7 +70,7 @@ You need to add redirect URLs based on your app's bundle ID/package name. Replac
 - Once you determine your bundle ID, update both the Supabase Dashboard and the code
 - The format is: `{BUNDLE_ID}://auth-callback`
 
-**Current code uses:** `com.memories.app://auth-callback`
+**Current code uses:** `com.memories.app.beta://auth-callback`
 
 ### 1.3 Enable Google OAuth Provider
 
@@ -135,7 +135,7 @@ UPDATE: DONE
 ### 3.1 Update Bundle Identifier
 
 Ensure your bundle identifier matches what you'll use in redirect URLs:
-- Example: `com.memories.app`
+- Example: `com.memories.app.beta`
 - Set in Xcode: Project → General → Bundle Identifier
 
 ### 3.2 Configure Universal Links (Recommended)
@@ -167,7 +167,7 @@ Update `lib/services/google_oauth_service.dart`:
 String _getRedirectUrl() {
   // Replace with your actual bundle ID
   return 'YOUR_BUNDLE_ID://auth-callback';
-  // Example: 'com.memories.app://auth-callback'
+  // Example: 'com.memories.app.beta://auth-callback'
 }
 ```
 
@@ -178,7 +178,7 @@ String _getRedirectUrl() {
 ### 4.1 Update Package Name
 
 Ensure your package name matches what you'll use in redirect URLs:
-- Example: `com.memories.app`
+- Example: `com.memories.app.beta`
 - Set in `android/app/build.gradle`: `applicationId`
 
 ### 4.2 Configure App Links (Recommended)
@@ -217,7 +217,7 @@ Same as iOS - update `lib/services/google_oauth_service.dart`:
 String _getRedirectUrl() {
   // Replace with your actual package name
   return 'YOUR_PACKAGE_NAME://auth-callback';
-  // Example: 'com.memories.app://auth-callback'
+  // Example: 'com.memories.app.beta://auth-callback'
 }
 ```
 
@@ -439,8 +439,8 @@ android {
 **Should be:** `YOUR_BUNDLE_ID://auth-callback`
 
 **Examples:**
-- iOS: `com.memories.app://auth-callback`
-- Android: `com.memories.app://auth-callback`
+- iOS: `com.memories.app.beta://auth-callback`
+- Android: `com.memories.app.beta://auth-callback`
 
 **Important:** The redirect URL must match exactly in:
 1. Supabase Dashboard → Authentication → URL Configuration

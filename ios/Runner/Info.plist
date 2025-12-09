@@ -70,7 +70,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.memories.app</string>
+				<string>com.memories.app.beta</string>
 			</array>
 		</dict>
 	</array>

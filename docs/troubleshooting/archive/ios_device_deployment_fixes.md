@@ -58,7 +58,7 @@
    - Open `ios/Runner.xcworkspace` in Xcode
    - Select Runner target → Signing & Capabilities
    - Ensure "Automatically manage signing" is enabled
-   - Verify the Bundle Identifier matches: `com.memories.app`
+   - Verify the Bundle Identifier matches: `com.memories.app.beta`
    - Check that your Team is selected
 
 4. **Trust the developer certificate on your iPhone:**

@@ -29,7 +29,7 @@ class GoogleOAuthService {
   /// - Google Cloud Console: Add Supabase callback URL:
   ///   https://cgppebaekutbacvuaioa.supabase.co/auth/v1/callback
   /// - Supabase Dashboard: Add app redirect URL:
-  ///   com.memories.app://auth-callback
+  ///   com.memories.app.beta://auth-callback
   ///
   /// For iOS: Configure Universal Links in Xcode
   /// For Android: Configure App Links in AndroidManifest.xml
@@ -44,24 +44,30 @@ class GoogleOAuthService {
       debugPrint('');
       debugPrint('OAuth Configuration Checklist:');
       debugPrint('✓ App redirect URL (this): $redirectUrl');
-      debugPrint('  → Must be registered in: Supabase Dashboard → Authentication → URL Configuration');
-      debugPrint('✓ Supabase callback URL: https://cgppebaekutbacvuaioa.supabase.co/auth/v1/callback');
-      debugPrint('  → Must be registered in: Google Cloud Console → OAuth 2.0 Client → Authorized redirect URIs');
+      debugPrint(
+          '  → Must be registered in: Supabase Dashboard → Authentication → URL Configuration');
+      debugPrint(
+          '✓ Supabase callback URL: https://cgppebaekutbacvuaioa.supabase.co/auth/v1/callback');
+      debugPrint(
+          '  → Must be registered in: Google Cloud Console → OAuth 2.0 Client → Authorized redirect URIs');
       debugPrint('');
       debugPrint('Calling signInWithOAuth...');
-      
+
       await _supabase.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirectUrl,
         authScreenLaunchMode: LaunchMode.externalApplication,
       );
-      
+
       debugPrint('✓ signInWithOAuth completed - browser should open');
       debugPrint('═══════════════════════════════════════════════════════');
       debugPrint('');
-      debugPrint('If Safari opens with "Open in Memories?" instead of Google login:');
-      debugPrint('→ Google OAuth provider is NOT properly configured in Supabase');
-      debugPrint('→ Check: Supabase Dashboard → Authentication → Providers → Google');
+      debugPrint(
+          'If Safari opens with "Open in Memories?" instead of Google login:');
+      debugPrint(
+          '→ Google OAuth provider is NOT properly configured in Supabase');
+      debugPrint(
+          '→ Check: Supabase Dashboard → Authentication → Providers → Google');
       debugPrint('→ Ensure:');
       debugPrint('  1. Google provider is ENABLED');
       debugPrint('  2. Client ID is set (from Google Cloud Console)');
@@ -70,11 +76,11 @@ class GoogleOAuthService {
       debugPrint('');
     } catch (e, stackTrace) {
       _errorHandler.logError(e, stackTrace);
-      
+
       // Provide helpful error message for common OAuth issues
       final errorMessage = e.toString().toLowerCase();
-      if (errorMessage.contains('redirect') || 
-          errorMessage.contains('url') || 
+      if (errorMessage.contains('redirect') ||
+          errorMessage.contains('url') ||
           errorMessage.contains('callback') ||
           errorMessage.contains('connect')) {
         debugPrint('');
@@ -84,23 +90,28 @@ class GoogleOAuthService {
         debugPrint('If you see "Safari can\'t connect" after Google login:');
         debugPrint('');
         debugPrint('1. Verify Google Cloud Console configuration:');
-        debugPrint('   → Go to: Google Cloud Console → APIs & Services → Credentials');
+        debugPrint(
+            '   → Go to: Google Cloud Console → APIs & Services → Credentials');
         debugPrint('   → Find your OAuth 2.0 Client ID');
-        debugPrint('   → Under "Authorized redirect URIs", ensure this is added:');
-        debugPrint('     https://cgppebaekutbacvuaioa.supabase.co/auth/v1/callback');
+        debugPrint(
+            '   → Under "Authorized redirect URIs", ensure this is added:');
+        debugPrint(
+            '     https://cgppebaekutbacvuaioa.supabase.co/auth/v1/callback');
         debugPrint('');
         debugPrint('2. Verify Supabase Dashboard configuration:');
-        debugPrint('   → Go to: Supabase Dashboard → Authentication → URL Configuration');
+        debugPrint(
+            '   → Go to: Supabase Dashboard → Authentication → URL Configuration');
         debugPrint('   → Under "Redirect URLs", ensure this is added:');
-        debugPrint('     com.memories.app://auth-callback');
+        debugPrint('     com.memories.app.beta://auth-callback');
         debugPrint('');
         debugPrint('3. Verify Google OAuth credentials in Supabase:');
-        debugPrint('   → Go to: Supabase Dashboard → Authentication → Providers → Google');
+        debugPrint(
+            '   → Go to: Supabase Dashboard → Authentication → Providers → Google');
         debugPrint('   → Ensure Client ID and Client Secret are correctly set');
         debugPrint('═══════════════════════════════════════════════════════');
         debugPrint('');
       }
-      
+
       rethrow;
     }
   }
@@ -111,8 +122,8 @@ class GoogleOAuthService {
   /// This should match the URL configured in Supabase dashboard.
   String _getRedirectUrl() {
     // This must match the URL scheme in Info.plist (iOS) and AndroidManifest.xml (Android)
-    // The bundle identifier is com.memories.app
-    return 'com.memories.app://auth-callback';
+    // The bundle identifier is com.memories.app.beta
+    return 'com.memories.app.beta://auth-callback';
   }
 
   /// Handle OAuth callback from deep link
