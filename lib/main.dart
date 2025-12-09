@@ -149,6 +149,9 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
+      themeMode: ThemeMode.light, // Force light mode for now
+      // Keep the dark theme config around in comments for future revisiting.
+      /*
       darkTheme: ThemeData(
         useMaterial3: true,
         colorScheme: const ColorScheme.dark(
@@ -183,6 +186,7 @@ class MyApp extends StatelessWidget {
           inversePrimary: Color(0xFF525252),
         ),
       ),
+      */
       home: const AppRouter(),
       routes: {
         '/login': (context) => const LoginScreen(),

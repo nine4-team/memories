@@ -1092,6 +1092,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                           ),
                                         ),
                                       ),
+                                      /* Temporarily disable story audio import button without removing code.
                                       if (state.memoryType ==
                                           MemoryType.story) ...[
                                         const SizedBox(width: 8),
@@ -1146,6 +1147,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                           ),
                                         ),
                                       ],
+                                      */
                                     ],
                                   ),
                                   const SizedBox(height: 8),
