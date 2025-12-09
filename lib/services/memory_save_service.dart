@@ -91,6 +91,21 @@ class MemorySaveService {
     }
 
     try {
+      if (state.memoryType == MemoryType.story &&
+          state.existingAudioPath == null) {
+        final pendingAudioPath = state.normalizedAudioPath ?? state.audioPath;
+        if (pendingAudioPath == null || pendingAudioPath.isEmpty) {
+          final guardMessage =
+              'Attempted to save story without preserved audio (sessionId=${state.sessionId})';
+          developer.log(
+            guardMessage,
+            name: 'MemorySaveService',
+          );
+          throw SaveException(
+              'Stories require an audio recording. Please record your story before saving.');
+        }
+      }
+
       // Step 1: Upload media files
       onProgress?.call(message: 'Uploading media...', progress: 0.1);
       final photoUrls = <String>[];
@@ -304,16 +319,32 @@ class MemorySaveService {
       final memoryId = response['id'] as String;
 
       // Step 3.5: Create story_fields row if this is a story
+      String? audioUploadError;
       if (state.memoryType == MemoryType.story) {
         // Upload audio if available
         // Prefer normalized audio path (compressed/optimized) over original
         String? audioPath;
         final audioFilePath = state.normalizedAudioPath ?? state.audioPath;
 
-        if (audioFilePath != null) {
+        if (audioFilePath == null || audioFilePath.isEmpty) {
+          audioUploadError =
+              'Audio file path missing before upload (sessionId=${state.sessionId})';
+          developer.log(
+            audioUploadError,
+            name: 'MemorySaveService',
+          );
+        } else {
           try {
             final audioFile = File(audioFilePath);
-            if (await audioFile.exists()) {
+            final fileExists = await audioFile.exists();
+            if (!fileExists) {
+              audioUploadError =
+                  'Audio file not found on disk: $audioFilePath (sessionId=${state.sessionId})';
+              developer.log(
+                audioUploadError,
+                name: 'MemorySaveService',
+              );
+            } else {
               // Verify file size is under 50 MB (safety check)
               final fileSize = await audioFile.length();
               const maxSizeBytes = 50 * 1024 * 1024; // 50 MB
@@ -344,12 +375,15 @@ class MemorySaveService {
 
               audioPath = audioStoragePath;
             }
-          } catch (e) {
+          } catch (e, stackTrace) {
             // Audio upload failed, but continue with story creation
             // The story_fields row will be created without audio_path
+            audioUploadError = e.toString();
             developer.log(
-              'Audio upload failed: $e',
+              'Audio upload failed for memory $memoryId',
               name: 'MemorySaveService',
+              error: e,
+              stackTrace: stackTrace,
             );
           }
         }
@@ -359,6 +393,7 @@ class MemorySaveService {
           'memory_id': memoryId,
           'audio_path': audioPath,
           'audio_duration': state.audioDuration,
+          if (audioUploadError != null) 'audio_upload_error': audioUploadError,
           // Store normalization metadata if available
           if (state.audioBitrateKbps != null)
             'audio_bitrate_kbps': state.audioBitrateKbps,
@@ -381,6 +416,8 @@ class MemorySaveService {
             'attempts': 0,
             'metadata': {
               'memory_type': state.memoryType.apiValue,
+              if (audioUploadError != null)
+                'audio_upload_error': audioUploadError,
             },
           });
         } catch (e) {

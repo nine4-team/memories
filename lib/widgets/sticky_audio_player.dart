@@ -23,6 +23,9 @@ class StickyAudioPlayer extends ConsumerStatefulWidget {
   final bool enablePositionUpdates;
   final ValueChanged<double>? onHeightChanged;
 
+  /// Whether the audio URL is currently being fetched (shows loading state instead of "not available")
+  final bool isLoadingUrl;
+
   const StickyAudioPlayer({
     super.key,
     this.audioUrl,
@@ -30,6 +33,7 @@ class StickyAudioPlayer extends ConsumerStatefulWidget {
     required this.storyId,
     this.enablePositionUpdates = true,
     this.onHeightChanged,
+    this.isLoadingUrl = false,
   });
 
   @override
@@ -90,9 +94,48 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
     // Use loaded duration if available, otherwise fall back to widget duration
     final effectiveDuration = _loadedDuration ?? widget.duration;
 
-    // If audio URL is not available, show placeholder
+    // If audio URL is not available, show placeholder or loading state
     // Duration can be loaded from audio engine once playback starts
     if (widget.audioUrl == null) {
+      // If we're loading the URL, show a loading state instead of "not available"
+      if (widget.isLoadingUrl) {
+        return Semantics(
+          label: 'Loading audio',
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outline.withOpacity(0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Loading audio…',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Otherwise, show "not available" message
       return Semantics(
         label: 'Audio is not available for this story',
         child: Container(

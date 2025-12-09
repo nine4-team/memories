@@ -2021,7 +2021,7 @@ class _StoryAudioPlayer extends ConsumerWidget {
         }
 
         if (!snapshot.hasData) {
-          // Loading state - show placeholder while fetching URL
+          // Loading state - show loading indicator while fetching URL
           developer.log(
             '[MemoryDetailScreen._StoryAudioPlayer] Still loading signed URL...',
             name: 'MemoryDetailScreen',
@@ -2031,6 +2031,7 @@ class _StoryAudioPlayer extends ConsumerWidget {
             duration: audioDuration,
             storyId: storyId,
             onHeightChanged: onHeightChanged,
+            isLoadingUrl: true,
           );
         }
 

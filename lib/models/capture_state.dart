@@ -312,10 +312,12 @@ class CaptureState {
   /// When editing, existing media counts toward the requirement.
   /// Tags alone are never sufficient to unlock save.
   bool get canSave {
-    // Stories: require either audio or text input
+    // Stories: require preserved audio (new or existing)
     if (memoryType == MemoryType.story) {
-      return (audioPath != null && audioPath!.isNotEmpty) ||
-          (inputText?.trim().isNotEmpty ?? false);
+      final hasRecordedAudio = (normalizedAudioPath?.isNotEmpty ?? false) ||
+          (audioPath?.isNotEmpty ?? false) ||
+          (existingAudioPath?.isNotEmpty ?? false);
+      return hasRecordedAudio;
     }
 
     // Calculate total media count (existing + new - deleted)

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_dictation/flutter_dictation.dart';
@@ -31,8 +32,21 @@ DictationService dictationService(DictationServiceRef ref) {
       '[dictationServiceProvider] ${startTime.toIso8601String()} START provider creation');
 
   // Read feature flag ONCE at creation (don't watch to avoid rebuilds)
-  final useNewPlugin = ref.read(useNewDictationPluginSyncProvider);
-  final service = DictationService(useNewPlugin: useNewPlugin);
+  final featureFlagUseNewPlugin = ref.read(useNewDictationPluginSyncProvider);
+  if (!featureFlagUseNewPlugin) {
+    debugPrint(
+        '[dictationServiceProvider] ${DateTime.now().toIso8601String()} WARNING: useNewDictationPluginSyncProvider returned false. Forcing preserved audio.');
+  }
+  const forcedUseNewPlugin = true;
+  debugPrint(
+    '[dictationServiceProvider] ${DateTime.now().toIso8601String()} useNewPlugin flag=$featureFlagUseNewPlugin, forcing=$forcedUseNewPlugin',
+  );
+
+  final service = DictationService(useNewPlugin: forcedUseNewPlugin);
+  developer.log(
+    'DictationService created (useNewPlugin=${service.useNewPlugin})',
+    name: 'dictationServiceProvider',
+  );
   debugPrint(
       '[dictationServiceProvider] ${DateTime.now().toIso8601String()} service created (${DateTime.now().difference(startTime).inMilliseconds}ms)');
 
@@ -382,6 +396,10 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
 
     final dictationService = ref.read(dictationServiceProvider);
     final result = await dictationService.stop();
+    developer.log(
+      'stopDictation completed (sessionId=${state.sessionId}, useNewPlugin=${dictationService.useNewPlugin}, audioFilePath=${result.audioFilePath})',
+      name: 'CaptureStateNotifier',
+    );
 
     // Cancel subscriptions and timer
     _cancelSubscriptions();
@@ -395,6 +413,26 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     double? audioDuration;
     if (result.metadata != null) {
       audioDuration = (result.metadata!['duration'] as num?)?.toDouble();
+    }
+
+    if (result.audioFilePath == null) {
+      final expectedSessionId = state.sessionId;
+      final message =
+          'Dictation stopped without audio file (sessionId=$expectedSessionId)';
+      developer.log(
+        message,
+        name: 'CaptureStateNotifier',
+      );
+      _textBeforeDictation = null;
+      state = state.copyWith(
+        isDictating: false,
+        errorMessage: 'We could not preserve that recording. Please try again.',
+        hasUnsavedChanges: true,
+        audioLevel: 0.0,
+        elapsedDuration: Duration.zero,
+        clearAudio: true,
+      );
+      return;
     }
 
     // Store audio file in cache if available (task 4: audio persistence hooks)
@@ -454,6 +492,11 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
         return;
       }
     }
+
+    developer.log(
+      'Dictation audio paths resolved (sessionId=$sessionId, cachedAudioPath=$cachedAudioPath, normalizedAudioPath=$normalizedAudioPath)',
+      name: 'CaptureStateNotifier',
+    );
 
     // Clear preserved text for next dictation session
     // The current inputText already has the combined text from the transcript subscription

@@ -59,11 +59,15 @@
     - ✅ Must run after migrations #6-7 (requires normalized text columns)
 
 12. **20251118000006_create_search_functionality.sql** 🔍 **SEARCH FUNCTIONALITY**
-    - Creates `search_memories` RPC function for full-text search with pagination and ranking
-    - Creates `recent_searches` table to store last 5 distinct queries per user
-    - Creates RPC functions: `get_recent_searches()`, `upsert_recent_search()`, `clear_recent_searches()`
-    - Adds validation (rejects empty queries) and logging (slow queries >1s)
-    - ✅ Must run after migration #11 (requires search_vector column)
+   - Creates `search_memories` RPC function for full-text search with pagination and ranking
+   - Creates `recent_searches` table to store last 5 distinct queries per user
+   - Creates RPC functions: `get_recent_searches()`, `upsert_recent_search()`, `clear_recent_searches()`
+   - Adds validation (rejects empty queries) and logging (slow queries >1s)
+   - ✅ Must run after migration #11 (requires search_vector column)
+
+13. **20251209100000_add_story_audio_upload_error.sql**
+   - Adds `audio_upload_error` column to `story_fields` so we can persist client-side upload failure details
+   - ✅ Safe to run
 
 ## ⚠️ Deprecated Migrations (DO NOT RUN)
 
@@ -99,6 +103,7 @@ See `_deprecated/` folder for migrations that should not be applied.
 10. 20251118000004 ⭐ (updates get_timeline_feed)
 11. 20251118000005 🔍 (adds search_vector and indexing)
 12. 20251118000006 🔍 (creates search_memories RPC and recent_searches table)
+13. 20251209100000_add_story_audio_upload_error
 ```
 
 ## Notes
