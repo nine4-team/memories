@@ -118,6 +118,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
       audioFileSizeBytes: normalizedAudio.fileSizeBytes,
       audioLevel: 0.0,
       isDictating: false,
+      existingAudioPath: null,
       hasUnsavedChanges: true,
       clearError: true,
     );
@@ -470,6 +471,7 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
       audioBitrateKbps: audioBitrateKbps,
       audioFileSizeBytes: audioFileSizeBytes,
       audioLevel: 0.0,
+      existingAudioPath: null,
       // Keep elapsedDuration as final recording duration
       hasUnsavedChanges: true,
     );
@@ -934,6 +936,8 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
     List<String>? existingVideoUrls,
     List<String?>? existingVideoPosterUrls,
     DateTime? memoryDate,
+    String? existingAudioPath,
+    double? existingAudioDuration,
   }) {
     final memoryType = MemoryTypeExtension.fromApiValue(captureType);
 
@@ -956,7 +960,14 @@ class CaptureStateNotifier extends _$CaptureStateNotifier {
       existingPhotoUrls: existingPhotoUrls ?? [],
       existingVideoUrls: existingVideoUrls ?? [],
       existingVideoPosterUrls: existingVideoPosterUrls ?? [],
+      audioPath: null,
+      normalizedAudioPath: null,
+      audioBitrateKbps: null,
+      audioFileSizeBytes: null,
       memoryDate: memoryDate,
+      existingAudioPath: existingAudioPath,
+      audioDuration: existingAudioDuration,
+      clearAudioDuration: existingAudioDuration == null,
       deletedPhotoUrls: const [],
       deletedVideoUrls: const [],
       deletedVideoPosterUrls: const [],

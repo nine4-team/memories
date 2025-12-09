@@ -52,6 +52,13 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
   String? _errorMessage;
   double? _lastReportedHeight;
   bool _heightReportScheduled = false;
+  static const double _controlSectionHeight = 70.0;
+  static const double _loadingBannerHeight = 20.0;
+  static const double _bannerBottomPadding = 8.0;
+  static const double _paddingWithBanner = 12.0;
+  static const double _paddingWithoutBanner = 16.0;
+
+  bool get _hasBanner => _errorMessage != null || _isLoading || _isBuffering;
 
   @override
   void initState() {
@@ -65,7 +72,32 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
   void didUpdateWidget(covariant StickyAudioPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.audioUrl != oldWidget.audioUrl) {
-      _loadAudioSource();
+      // Avoid reloading the audio engine when only the signed token/query
+      // portion of a URL has changed. For Supabase signed URLs, the path
+      // component identifies the underlying object, while the query holds
+      // short‑lived auth metadata. We only reload when the effective path
+      // changes (including transitions between null/non‑null).
+      final newUrl = widget.audioUrl;
+      final oldUrl = oldWidget.audioUrl;
+
+      bool shouldReload = true;
+
+      if (newUrl != null && oldUrl != null) {
+        final newUri = Uri.tryParse(newUrl);
+        final oldUri = Uri.tryParse(oldUrl);
+        if (newUri != null &&
+            oldUri != null &&
+            newUri.scheme == oldUri.scheme &&
+            newUri.host == oldUri.host &&
+            newUri.path == oldUri.path) {
+          // Same underlying resource; ignore token/expiry/query differences.
+          shouldReload = false;
+        }
+      }
+
+      if (shouldReload) {
+        _loadAudioSource();
+      }
     }
     if (widget.enablePositionUpdates != oldWidget.enablePositionUpdates) {
       _startPositionSubscription();
@@ -130,13 +162,21 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
       );
     }
 
+    final hasBanner = _hasBanner;
+    final verticalPadding =
+        hasBanner ? _paddingWithBanner : _paddingWithoutBanner;
+    final horizontalPadding = 16.0;
+
     return Semantics(
       label: 'Audio player for story',
       hint: 'Use play/pause button to control playback, use slider to seek',
       child: Focus(
         autofocus: false,
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: verticalPadding,
+          ),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(12),
@@ -205,7 +245,7 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  SizedBox(width: hasBanner ? 12 : 16),
                   // Time display and scrubber
                   Expanded(
                     child: Column(
@@ -273,7 +313,7 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  SizedBox(width: hasBanner ? 12 : 16),
                   // Playback speed button - accessible with proper labels
                   SizedBox(
                     width: 48,
@@ -360,11 +400,7 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
     if (!mounted || widget.onHeightChanged == null) {
       return;
     }
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) {
-      return;
-    }
-    final height = renderBox.size.height;
+    final height = _estimateHeight();
     if (!height.isFinite || height <= 0) {
       return;
     }
@@ -373,6 +409,18 @@ class _StickyAudioPlayerState extends ConsumerState<StickyAudioPlayer> {
       _lastReportedHeight = height;
       widget.onHeightChanged!(height);
     }
+  }
+
+  double _estimateHeight() {
+    final verticalPadding =
+        _hasBanner ? _paddingWithBanner : _paddingWithoutBanner;
+    final bannerHeight = _hasBanner ? _loadingBannerHeight : 0.0;
+    final footerSpacing = _hasBanner ? _bannerBottomPadding : 0.0;
+    return verticalPadding +
+        bannerHeight +
+        footerSpacing +
+        _controlSectionHeight +
+        verticalPadding;
   }
 
   Future<void> _togglePlayPause() async {
@@ -560,12 +608,12 @@ class _AudioLoadingBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
           SizedBox(
-            width: 20,
-            height: 20,
+            width: 16,
+            height: 16,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               color: theme.colorScheme.primary,
@@ -577,6 +625,7 @@ class _AudioLoadingBanner extends StatelessWidget {
               isBuffering ? 'Buffering audio…' : 'Loading audio…',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 12,
               ),
             ),
           ),
@@ -599,13 +648,13 @@ class _AudioErrorBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
           Icon(
             Icons.warning_amber_rounded,
             color: theme.colorScheme.error,
-            size: 20,
+            size: 16,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -613,13 +662,22 @@ class _AudioErrorBanner extends StatelessWidget {
               message,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 12,
               ),
             ),
           ),
           if (onRetry != null)
             TextButton(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               onPressed: () => onRetry!(),
-              child: const Text('Retry'),
+              child: const Text(
+                'Retry',
+                style: TextStyle(fontSize: 12),
+              ),
             ),
         ],
       ),

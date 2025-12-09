@@ -675,6 +675,27 @@ void main() {
         expect(updatedState.memoryTitle, isNull);
         expect(updatedState.hasUnsavedChanges, isTrue);
       });
+
+      test('loadMemoryForEdit preserves existing audio metadata', () {
+        final notifier = container.read(captureStateNotifierProvider.notifier);
+
+        notifier.loadMemoryForEdit(
+          memoryId: 'story-789',
+          captureType: MemoryType.story.apiValue,
+          inputText: 'Narrative text',
+          title: 'Story title',
+          tags: const ['memoir'],
+          existingAudioPath: 'stories/audio/user123/story789/audio.m4a',
+          existingAudioDuration: 42.5,
+        );
+
+        final state = container.read(captureStateNotifierProvider);
+        expect(
+          state.existingAudioPath,
+          equals('stories/audio/user123/story789/audio.m4a'),
+        );
+        expect(state.audioDuration, equals(42.5));
+      });
     });
   });
 }

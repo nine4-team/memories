@@ -128,6 +128,9 @@ class CaptureState {
   /// List of existing video poster URLs aligned with [existingVideoUrls]
   final List<String?> existingVideoPosterUrls;
 
+  /// Audio path that already exists on the server (stories only)
+  final String? existingAudioPath;
+
   /// List of existing photo URLs that should be deleted on save
   final List<String> deletedPhotoUrls;
 
@@ -178,6 +181,7 @@ class CaptureState {
     this.deletedPhotoUrls = const [],
     this.deletedVideoUrls = const [],
     this.deletedVideoPosterUrls = const [],
+    this.existingAudioPath,
   });
 
   /// Create a copy with updated fields
@@ -222,6 +226,7 @@ class CaptureState {
     List<String>? deletedPhotoUrls,
     List<String>? deletedVideoUrls,
     List<String?>? deletedVideoPosterUrls,
+    String? existingAudioPath,
     bool clearInputText = false,
     bool clearMemoryTitle = false,
     bool clearError = false,
@@ -231,6 +236,7 @@ class CaptureState {
     bool clearOriginalEditingMemoryId = false,
     bool clearOriginalInputText = false,
     bool clearOriginalMemoryTitle = false,
+    bool clearAudioDuration = false,
   }) {
     return CaptureState(
       memoryType: memoryType ?? this.memoryType,
@@ -253,7 +259,9 @@ class CaptureState {
       capturedAt: capturedAt ?? this.capturedAt,
       memoryDate: memoryDate ?? this.memoryDate,
       audioPath: clearAudio ? null : (audioPath ?? this.audioPath),
-      audioDuration: clearAudio ? null : (audioDuration ?? this.audioDuration),
+      audioDuration: clearAudio
+          ? null
+          : (clearAudioDuration ? null : (audioDuration ?? this.audioDuration)),
       normalizedAudioPath:
           clearAudio ? null : (normalizedAudioPath ?? this.normalizedAudioPath),
       audioBitrateKbps:
@@ -289,6 +297,8 @@ class CaptureState {
       deletedVideoUrls: deletedVideoUrls ?? this.deletedVideoUrls,
       deletedVideoPosterUrls:
           deletedVideoPosterUrls ?? this.deletedVideoPosterUrls,
+      existingAudioPath:
+          clearAudio ? null : (existingAudioPath ?? this.existingAudioPath),
     );
   }
 

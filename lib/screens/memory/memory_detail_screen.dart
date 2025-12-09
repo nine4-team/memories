@@ -1405,6 +1405,8 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
       existingPhotoUrls: existingPhotoUrls,
       existingVideoUrls: existingVideoUrls,
       existingVideoPosterUrls: existingVideoPosterUrls,
+      existingAudioPath: memory.audioPath,
+      existingAudioDuration: memory.audioDuration,
       memoryDate: memory.memoryDate,
     );
 

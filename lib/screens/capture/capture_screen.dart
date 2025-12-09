@@ -1175,10 +1175,11 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                       state.existingPhotoUrls.isNotEmpty ||
                                       state.existingVideoUrls.isNotEmpty ||
                                       state.tags.isNotEmpty ||
-                                      // For stories, also surface an imported/recorded audio indicator
+                                      // For stories, also surface an imported/recorded or existing audio indicator
                                       (state.memoryType == MemoryType.story &&
                                           (state.normalizedAudioPath != null ||
-                                              state.audioPath != null)))
+                                              state.audioPath != null ||
+                                              state.existingAudioPath != null)))
                                     Container(
                                       margin: const EdgeInsets.symmetric(
                                           horizontal: 5),
@@ -1216,7 +1217,9 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                                       MemoryType.story &&
                                                   (state.normalizedAudioPath !=
                                                           null ||
-                                                      state.audioPath != null)))
+                                                      state.audioPath != null ||
+                                                      state.existingAudioPath !=
+                                                          null)))
                                             SizedBox(
                                               height: 100,
                                               child: MediaTray(
@@ -1260,6 +1263,8 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                                                     (state.normalizedAudioPath !=
                                                             null ||
                                                         state.audioPath !=
+                                                            null ||
+                                                        state.existingAudioPath !=
                                                             null),
                                                 audioDurationSeconds:
                                                     state.audioDuration,
