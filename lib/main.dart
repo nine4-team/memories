@@ -7,6 +7,7 @@ import 'package:memories/screens/auth/login_screen.dart';
 import 'package:memories/screens/auth/signup_screen.dart';
 import 'package:memories/screens/auth/password_reset_screen.dart';
 import 'package:memories/services/supabase_secure_storage.dart';
+import 'package:memories/widgets/keyboard_dismiss_on_tap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,6 +63,9 @@ class MyApp extends StatelessWidget {
     // Using soft grays with very subtle warm undertone
     return MaterialApp(
       title: 'Memories',
+      builder: (context, child) => KeyboardDismissOnTap(
+        child: child ?? const SizedBox.shrink(),
+      ),
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor:
