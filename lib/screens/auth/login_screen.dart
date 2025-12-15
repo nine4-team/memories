@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:memories/providers/auth_state_provider.dart';
+import 'package:memories/providers/main_navigation_provider.dart';
 import 'package:memories/providers/supabase_provider.dart';
 import 'package:memories/services/auth_error_handler.dart';
 import 'package:memories/services/google_oauth_service.dart';
@@ -69,6 +70,18 @@ class _LoginScreenState extends State<LoginScreen> {
             secureStorage: secureStorage,
           );
         }
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+
+      if (response.user != null) {
+        final navigationNotifier =
+            container.read(mainNavigationTabNotifierProvider.notifier);
+        navigationNotifier.switchToCapture();
       }
 
       // Navigation will be handled by auth state provider

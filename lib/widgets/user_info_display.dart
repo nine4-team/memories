@@ -1,75 +1,112 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:memories/providers/supabase_provider.dart';
 
 /// Widget for displaying read-only user information
-/// 
+///
 /// Shows:
 /// - Email address (from auth.users)
 /// - Last sign-in timestamp
 /// - Profile name (from profiles table)
 /// - Account creation date (optional)
-class UserInfoDisplay extends StatefulWidget {
+class UserInfoDisplay extends ConsumerStatefulWidget {
   const UserInfoDisplay({super.key});
 
   @override
-  State<UserInfoDisplay> createState() => _UserInfoDisplayState();
+  ConsumerState<UserInfoDisplay> createState() => _UserInfoDisplayState();
 }
 
-class _UserInfoDisplayState extends State<UserInfoDisplay> {
+class _UserInfoDisplayState extends ConsumerState<UserInfoDisplay> {
   String? _profileName;
   bool _isLoading = true;
   String? _errorMessage;
+  String? _currentUserId;
+  StreamSubscription<dynamic>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
+    _subscribeToAuthStateChanges();
     _loadProfileInfo();
   }
 
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _subscribeToAuthStateChanges() {
+    final supabase = ref.read(supabaseClientProvider);
+    _authSubscription = supabase.auth.onAuthStateChange.listen((event) {
+      final session = event.session;
+      final newUserId = session != null ? session.user.id : null;
+      if (newUserId != _currentUserId) {
+        _currentUserId = newUserId;
+        if (newUserId == null) {
+          if (mounted) {
+            setState(() {
+              _profileName = null;
+              _isLoading = false;
+              _errorMessage = null;
+            });
+          }
+        } else {
+          _loadProfileInfo();
+        }
+      }
+    });
+  }
+
   Future<void> _loadProfileInfo() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
-      final container = ProviderScope.containerOf(context);
-      final supabase = container.read(supabaseClientProvider);
+      final supabase = ref.read(supabaseClientProvider);
       final user = supabase.auth.currentUser;
 
       if (user == null) {
         setState(() {
+          _profileName = null;
           _isLoading = false;
         });
         return;
       }
 
-      // Fetch profile name from profiles table
-      try {
-        final profileResponse = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', user.id)
-            .single();
+      _currentUserId = user.id;
 
-        setState(() {
-          _profileName = profileResponse['name'] as String?;
-          _isLoading = false;
-        });
-      } catch (e) {
-        // Profile might not exist yet, that's okay
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
+      final profileResponse = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', user.id)
+          .single();
+
+      if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to load profile information';
+        _profileName = profileResponse['name'] as String?;
         _isLoading = false;
+      });
+    } catch (error) {
+      debugPrint('Failed to load profile information: $error');
+      if (!mounted) return;
+      setState(() {
+        _profileName = null;
+        _isLoading = false;
+        _errorMessage = 'Failed to load profile information';
       });
     }
   }
 
   String _formatDate(String? dateString) {
     if (dateString == null) return 'Never';
-    
+
     try {
       final date = DateTime.parse(dateString);
       return '${date.month}/${date.day}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
@@ -80,8 +117,7 @@ class _UserInfoDisplayState extends State<UserInfoDisplay> {
 
   @override
   Widget build(BuildContext context) {
-    final container = ProviderScope.containerOf(context);
-    final supabase = container.read(supabaseClientProvider);
+    final supabase = ref.read(supabaseClientProvider);
     final user = supabase.auth.currentUser;
 
     if (user == null) {
@@ -101,15 +137,25 @@ class _UserInfoDisplayState extends State<UserInfoDisplay> {
     }
 
     if (_errorMessage != null) {
-      return Semantics(
-        label: 'Error loading user information',
-        liveRegion: true,
-        child: Text(
-          _errorMessage!,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.error,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            label: 'Error loading user information',
+            liveRegion: true,
+            child: Text(
+              _errorMessage!,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
           ),
-        ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _isLoading ? null : _loadProfileInfo,
+            child: const Text('Retry loading profile'),
+          ),
+        ],
       );
     }
 
@@ -127,7 +173,7 @@ class _UserInfoDisplayState extends State<UserInfoDisplay> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Profile name
           if (_profileName != null) ...[
             Semantics(
@@ -139,7 +185,7 @@ class _UserInfoDisplayState extends State<UserInfoDisplay> {
             ),
             const SizedBox(height: 16),
           ],
-          
+
           // Last sign-in
           Semantics(
             label: 'Last sign-in timestamp',
@@ -148,7 +194,7 @@ class _UserInfoDisplayState extends State<UserInfoDisplay> {
               value: _formatDate(user.lastSignInAt),
             ),
           ),
-          
+
           // Account creation date
           const SizedBox(height: 16),
           Semantics(
@@ -198,4 +244,3 @@ class _InfoRow extends StatelessWidget {
     );
   }
 }
-
