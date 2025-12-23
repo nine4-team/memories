@@ -61,23 +61,34 @@ class _SignupScreenState extends State<SignupScreen> {
         },
       );
 
-      if (response.user != null) {
-        // Update profile with name
-        await supabase.from('profiles').upsert({
-          'id': response.user!.id,
-          'name': _nameController.text.trim(),
-        });
+      if (!mounted) {
+        return;
+      }
 
-        // Navigation will be handled by auth state provider
-        // User will be routed to verification wait screen
+      if (response.user != null) {
+        // Surface helpful feedback so users know to check their inbox
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Check your email to verify your account. You can sign in once it is confirmed.',
+            ),
+          ),
+        );
       }
     } catch (e) {
       final container = ProviderScope.containerOf(context);
       final errorHandler = container.read(authErrorHandlerProvider);
-      setState(() {
-        _errorMessage = errorHandler.handleAuthError(e);
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = errorHandler.handleAuthError(e);
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -92,16 +103,16 @@ class _SignupScreenState extends State<SignupScreen> {
       debugPrint('═══════════════════════════════════════════════════════');
       debugPrint('Starting Google OAuth signup...');
       debugPrint('═══════════════════════════════════════════════════════');
-      
+
       final container = ProviderScope.containerOf(context);
       final googleOAuth = container.read(googleOAuthServiceProvider);
       await googleOAuth.signIn();
-      
+
       debugPrint('✓ OAuth signIn() completed - Safari should have opened');
       debugPrint('  Waiting for OAuth callback via deep link...');
       debugPrint('═══════════════════════════════════════════════════════');
       debugPrint('');
-      
+
       // Browser opened successfully - reset loading state
       // The OAuth flow will continue in the browser and return via deep link
       if (mounted) {
@@ -117,11 +128,11 @@ class _SignupScreenState extends State<SignupScreen> {
       debugPrint('  $e');
       debugPrint('═══════════════════════════════════════════════════════');
       debugPrint('');
-      
+
       final container = ProviderScope.containerOf(context);
       final errorHandler = container.read(authErrorHandlerProvider);
       errorHandler.logError(e, stackTrace);
-      
+
       if (mounted) {
         setState(() {
           _errorMessage = errorHandler.handleAuthError(e);
