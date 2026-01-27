@@ -1,10 +1,10 @@
 # Auth Refresh Token Failure & OAuth Callback Routing Error
 
 ## Last Updated
-2025-11-18
+2026-01-27
 
 ## TL;DR
-Stored Supabase sessions fail to hydrate on iOS because `_hydrateSession()` calls `refreshSession()` without rehydrating Supabase’s internal session cache. This surfaces as `AuthApiException(message: Invalid Refresh Token: Refresh Token Not Found, statusCode: 400)`. At the same time, a Flutter `onGenerateRoute` handler tries to interpret the incoming OAuth deep link (`com.memories.app.beta://auth-callback`) as a Flutter route, producing `[FlutterViewController.mm(1869)] Failed to handle route information`.
+Historically, stored Supabase sessions failed to hydrate on iOS when `_hydrateSession()` called `refreshSession()` without letting Supabase rehydrate its internal cache. This surfaced as `AuthApiException(message: Invalid Refresh Token: Refresh Token Not Found, statusCode: 400)`. The current implementation now checks `supabase.auth.currentSession`, uses `recoverSession()` with the serialized session JSON from `SupabaseSecureStorage`, and treats `refresh_token_not_found` as an expected expiration. A separate OAuth callback routing issue may still occur if Flutter route handling intercepts `com.memories.app.beta://auth-callback`.
 
 ## Symptoms
 - Console spam during cold start:
@@ -13,12 +13,12 @@ Stored Supabase sessions fail to hydrate on iOS because `_hydrateSession()` call
 - App router drops back to the unauthenticated stack even when a session exists.
 - After Google OAuth completes, Xcode logs `Failed to handle route information` and the app never navigates to the authenticated shell.
 
-## Root Causes
+## Root Causes (Historical)
 1. **Incorrect session hydration flow**  
-   `Supabase.initialize` already persists the full session JSON via `SupabaseSecureStorage`, but `_hydrateSession()` ignores that cache and directly calls `refreshSession()` with no `currentSession`. Supabase treats this as a missing refresh token and returns 400. The code also stores tokens separately in `SecureStorageService`, creating two divergent sources of truth.
+   `Supabase.initialize` already persists the full session JSON via `SupabaseSecureStorage`, but `_hydrateSession()` ignored that cache and directly called `refreshSession()` with no `currentSession`. Supabase treated this as a missing refresh token and returned 400. The code also stored tokens separately in `SecureStorageService`, creating two divergent sources of truth.
 
 2. **Deep link route interception**  
-   `MaterialApp.onGenerateRoute` special-cases `/auth-callback`. When iOS launches the app with `com.memories.app.beta://auth-callback`, Flutter attempts to convert that URL into a route, colliding with Supabase’s plugin-level handler and throwing `FlutterViewController` errors.
+   `MaterialApp.onGenerateRoute` special-cased `/auth-callback`. When iOS launches the app with `com.memories.app.beta://auth-callback`, Flutter attempted to convert that URL into a route, colliding with Supabase’s plugin-level handler and throwing `FlutterViewController` errors.
 
 ## Investigation Checklist
 1. Confirm `SupabaseSecureStorage.persistSession()` contains the PKCE session JSON (inspect the key in Keychain).  
@@ -29,25 +29,23 @@ Stored Supabase sessions fail to hydrate on iOS because `_hydrateSession()` call
    - Relaunching; watch `_hydrateSession()` logs.  
 4. On the OAuth callback, confirm the deep link arrives (look for `supabase.supabase_flutter: INFO: handle deeplink uri`) followed immediately by the Flutter route error.
 
-## Recommended Fix Plan (do not implement yet)
+## Resolution (Implemented)
 
 ### 1. Align Session Hydration With Supabase Expectations
-- Prefer `supabase.auth.recoverSession()` so Supabase reads the serialized session it created via `SupabaseSecureStorage`.
-- Before calling any refresh API, check `supabase.auth.currentSession`; if Supabase already hydrated automatically, skip manual work.
-- When `recoverSession()` throws `refresh_token_not_found`, treat it as an expected expiration: clear `SecureStorageService` immediately and do **not** surface a user-facing error message.
-- Decide on a single storage of truth:
-  - Option A: rely solely on Supabase’s `LocalStorage` abstraction. Remove redundant secure storage writes for tokens.
-  - Option B: if custom storage is required (e.g., biometrics), store the exact serialized session string and call `supabase.auth.setSession(sessionJson)` instead of refreshing.
+- `_hydrateSession()` now checks `supabase.auth.currentSession` first; if present, it skips manual work.
+- If Supabase did not auto-hydrate, `_hydrateSession()` uses `supabase.auth.recoverSession(sessionJson)` with the serialized session JSON from `SupabaseSecureStorage`.
+- `refresh_token_not_found` during recovery is treated as expected expiration: storage is cleared without surfacing a confusing error.
+- The app no longer stores access/refresh tokens separately; only the serialized session JSON is mirrored when needed (e.g., for biometrics).
 
-### 2. Remove Flutter Route Interference
-- Delete the `/auth-callback` case from `MaterialApp.onGenerateRoute` (Supabase handles the scheme at the platform channel level).
-- If you need diagnostics, log inside `AppDelegate.application(_:open:options:)` rather than Flutter routing.
+### 2. OAuth Deep Link Routing
+- If `com.memories.app.beta://auth-callback` still triggers `FlutterViewController` route errors, verify `MaterialApp.onGenerateRoute` is not intercepting `/auth-callback`.
+- Prefer logging in `AppDelegate.application(_:open:options:)` if diagnostics are needed.
 
-### 3. Revalidate Platform Configuration
+### 3. Platform Configuration (Verify)
 - Ensure `Info.plist` lists `com.memories.app.beta` under `CFBundleURLSchemes`.
-- Supabase Dashboard → Authentication → URL Configuration must include `com.memories.app.beta://auth-callback`.
-- Google Cloud OAuth client must list `https://cgppebaekutbacvuaioa.supabase.co/auth/v1/callback`.
-- If Universal Links/App Links are enabled, make sure associated domains match; otherwise disable them so the custom scheme is used consistently.
+- Supabase Dashboard → Authentication → URL Configuration includes `com.memories.app.beta://auth-callback`.
+- Google Cloud OAuth client lists `https://cgppebaekutbacvuaioa.supabase.co/auth/v1/callback`.
+- If Universal Links/App Links are enabled, confirm associated domains match; otherwise disable them.
 
 ## Verification Steps (post-fix)
 1. Clear secure storage (both `supabase-auth-token` key and custom tokens). Relaunch; `_hydrateSession()` should log “No stored session” and finish without errors.

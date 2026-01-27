@@ -7,12 +7,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 part 'auth_error_handler.g.dart';
 
 /// Service for handling authentication errors
-/// 
+///
 /// Provides user-friendly error messages and logging hooks per security standards.
 /// Handles offline detection, network errors, and Supabase-specific auth errors.
 class AuthErrorHandler {
   /// Handle authentication errors and return user-friendly messages
-  /// 
+  ///
   /// Returns a user-friendly error message without exposing technical details
   /// or security information per error handling standards.
   String handleAuthError(Object error) {
@@ -20,7 +20,7 @@ class AuthErrorHandler {
     if (kDebugMode && error is AuthException) {
       debugPrint('AuthError: ${error.statusCode} - ${error.message}');
     }
-    
+
     // Handle network/connectivity errors
     if (error is SocketException || error is TimeoutException) {
       return 'Unable to connect. Please check your internet connection and try again.';
@@ -42,31 +42,44 @@ class AuthErrorHandler {
 
   /// Handle Supabase-specific authentication errors
   String _handleSupabaseAuthError(AuthException error) {
+    // Check for refresh_token_not_found (can appear in statusCode or message)
+    final message = error.message.toLowerCase();
+    final statusCode = (error.statusCode ?? '').toLowerCase();
+    final isRefreshTokenMissing = statusCode == 'refresh_token_not_found' ||
+        message.contains('refresh token not found') ||
+        message.contains('refresh_token_not_found');
+
+    if (isRefreshTokenMissing) {
+      // Treat refresh_token_not_found as expected session expiration
+      // This prevents confusing error messages when sessions naturally expire
+      return 'Session expired. Please sign in again.';
+    }
+
     switch (error.statusCode) {
       case 'invalid_credentials':
         return 'Invalid email or password. Please check your credentials and try again.';
-      
+
       case 'email_not_confirmed':
         return 'Please verify your email address before signing in.';
-      
+
       case 'signup_disabled':
         return 'New account registration is currently disabled.';
-      
+
       case 'email_rate_limit_exceeded':
         return 'Too many requests. Please wait a moment and try again.';
-      
+
       case 'user_not_found':
         return 'No account found with this email address.';
-      
+
       case 'weak_password':
         return 'Password is too weak. Please use a stronger password.';
-      
+
       case 'email_address_invalid':
         return 'Please enter a valid email address.';
-      
+
       case 'user_already_registered':
         return 'An account with this email already exists. Please sign in instead.';
-      
+
       default:
         // Don't expose internal error details
         return 'Authentication failed. Please try again.';
@@ -76,23 +89,25 @@ class AuthErrorHandler {
   /// Handle generic errors
   String _handleGenericError(Exception error) {
     final errorMessage = error.toString().toLowerCase();
-    
-    if (errorMessage.contains('network') || errorMessage.contains('connection')) {
+
+    if (errorMessage.contains('network') ||
+        errorMessage.contains('connection')) {
       return 'Network error. Please check your connection and try again.';
     }
-    
+
     if (errorMessage.contains('timeout')) {
       return 'Request timed out. Please try again.';
     }
-    
+
     return 'An error occurred. Please try again.';
   }
 
   /// Log error with context for debugging
-  /// 
+  ///
   /// Logs errors according to security standards. In production, this should
   /// integrate with Sentry or similar error tracking service.
-  void logError(Object error, StackTrace stackTrace, {Map<String, dynamic>? context}) {
+  void logError(Object error, StackTrace stackTrace,
+      {Map<String, dynamic>? context}) {
     if (kDebugMode) {
       debugPrint('Auth Error: $error');
       debugPrint('Stack Trace: $stackTrace');
@@ -100,7 +115,7 @@ class AuthErrorHandler {
         debugPrint('Context: $context');
       }
     }
-    
+
     // In production, send to Sentry:
     // Sentry.captureException(
     //   error,
@@ -131,4 +146,3 @@ class AuthErrorHandler {
 AuthErrorHandler authErrorHandler(AuthErrorHandlerRef ref) {
   return AuthErrorHandler();
 }
-

@@ -74,6 +74,9 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
   final secureStorage = ref.watch(secureStorageServiceProvider);
   final biometricService = ref.watch(biometricServiceProvider);
   final errorHandler = ref.watch(authErrorHandlerProvider);
+  String? lastUserId;
+  String? lastUserEmail;
+  bool lastSessionExists = false;
 
   try {
     // Hydrate session from secure storage on app start
@@ -113,10 +116,17 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
       user: initialUser,
       session: initialSession,
     );
+    lastUserId = initialUser?.id;
+    lastUserEmail = initialUser?.email;
+    lastSessionExists = initialSession != null;
 
     // Listen to auth state changes
     await for (final authState in supabase.auth.onAuthStateChange) {
       try {
+        final previousUserId = lastUserId;
+        final previousUserEmail = lastUserEmail;
+        final previousSessionExists = lastSessionExists;
+
         debugPrint('');
         debugPrint('═══════════════════════════════════════════════════════');
         debugPrint('Auth state changed: ${authState.event}');
@@ -124,15 +134,43 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
         final session = authState.session;
         final user = authState.session?.user;
 
-        if (authState.event == AuthChangeEvent.signedIn) {
-          debugPrint('✓ User signed in via OAuth');
-          debugPrint('  User ID: ${user?.id}');
-          debugPrint('  Email: ${user?.email}');
-          debugPrint('  Session exists: ${session != null}');
-        } else if (authState.event == AuthChangeEvent.signedOut) {
-          debugPrint('✗ User signed out');
-        } else if (authState.event == AuthChangeEvent.tokenRefreshed) {
-          debugPrint('↻ Token refreshed');
+        // Comprehensive logging for all AuthChangeEvent types
+        // This helps correlate user actions with unexpected sign-outs
+        switch (authState.event) {
+          case AuthChangeEvent.signedIn:
+            debugPrint('✓ User signed in');
+            debugPrint('  User ID: ${user?.id}');
+            debugPrint('  Email: ${user?.email}');
+            debugPrint('  Session exists: ${session != null}');
+            if (session != null) {
+              debugPrint('  Access token expires at: ${session.expiresAt}');
+            }
+            break;
+          case AuthChangeEvent.signedOut:
+            debugPrint('✗ User signed out');
+            debugPrint('  Previous user ID: ${previousUserId ?? "unknown"}');
+            debugPrint('  Previous email: ${previousUserEmail ?? "unknown"}');
+            debugPrint('  Session was null: ${session == null}');
+            debugPrint(
+                '  Had active session before event: $previousSessionExists');
+            break;
+          case AuthChangeEvent.tokenRefreshed:
+            debugPrint('↻ Token refreshed');
+            if (session != null) {
+              debugPrint('  New access token expires at: ${session.expiresAt}');
+              debugPrint('  User ID: ${user?.id}');
+            }
+            break;
+          case AuthChangeEvent.userUpdated:
+            debugPrint('↻ User updated');
+            debugPrint('  User ID: ${user?.id}');
+            debugPrint('  Email: ${user?.email}');
+            break;
+          case AuthChangeEvent.passwordRecovery:
+            debugPrint('🔑 Password recovery initiated');
+            break;
+          default:
+            debugPrint('? Unknown auth event: ${authState.event}');
         }
         debugPrint('═══════════════════════════════════════════════════════');
         debugPrint('');
@@ -143,6 +181,9 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
         } else {
           await secureStorage.clearSession();
         }
+        lastUserId = user?.id;
+        lastUserEmail = user?.email;
+        lastSessionExists = session != null;
 
         // Determine route state
         final routeState = await _determineRouteState(
