@@ -90,6 +90,6 @@ flutter:
 flutter_launcher_icons:
   android: false  # Android not configured yet
   ios: true
-  image_path: "memories_logo_white.png"
+  image_path: "memories_logo.png"
   remove_alpha_ios: true
 
