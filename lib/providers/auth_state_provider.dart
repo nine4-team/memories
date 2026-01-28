@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +10,7 @@ import 'package:memories/services/secure_storage_service.dart';
 import 'package:memories/services/auth_error_handler.dart';
 import 'package:memories/services/biometric_service.dart';
 import 'package:memories/services/supabase_secure_storage.dart';
+import 'package:memories/services/connectivity_service.dart';
 
 part 'auth_state_provider.g.dart';
 
@@ -31,12 +35,14 @@ class AuthRoutingState {
   final User? user;
   final Session? session;
   final String? errorMessage;
+  final bool isOffline;
 
   const AuthRoutingState({
     required this.routeState,
     this.user,
     this.session,
     this.errorMessage,
+    this.isOffline = false,
   });
 
   AuthRoutingState copyWith({
@@ -44,12 +50,14 @@ class AuthRoutingState {
     User? user,
     Session? session,
     String? errorMessage,
+    bool? isOffline,
   }) {
     return AuthRoutingState(
       routeState: routeState ?? this.routeState,
       user: user ?? this.user,
       session: session ?? this.session,
       errorMessage: errorMessage ?? this.errorMessage,
+      isOffline: isOffline ?? this.isOffline,
     );
   }
 }
@@ -74,18 +82,29 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
   final secureStorage = ref.watch(secureStorageServiceProvider);
   final biometricService = ref.watch(biometricServiceProvider);
   final errorHandler = ref.watch(authErrorHandlerProvider);
+  final connectivityService = ref.watch(connectivityServiceProvider);
   String? lastUserId;
   String? lastUserEmail;
   bool lastSessionExists = false;
 
   try {
-    // Hydrate session from secure storage on app start
-    // This will check for biometric authentication if enabled
+    // Check connectivity status
+    final isOnline = await connectivityService.isOnline();
     debugPrint('');
     debugPrint('═══════════════════════════════════════════════════════');
     debugPrint('Initializing auth state provider...');
+    debugPrint('  Connectivity: ${isOnline ? "online" : "offline"}');
     debugPrint('═══════════════════════════════════════════════════════');
-    await _hydrateSession(supabase, secureStorage, biometricService);
+
+    // Hydrate session from secure storage on app start
+    // This will check for biometric authentication if enabled
+    await _hydrateSession(
+      supabase,
+      secureStorage,
+      biometricService,
+      errorHandler,
+      isOnline,
+    );
 
     // Get initial auth state immediately (before waiting for stream)
     final initialSession = supabase.auth.currentSession;
@@ -105,6 +124,7 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
       supabase,
       initialUser,
       initialSession,
+      isOnline,
     );
 
     debugPrint('  Route state: $initialRouteState');
@@ -115,6 +135,7 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
       routeState: initialRouteState,
       user: initialUser,
       session: initialSession,
+      isOffline: !isOnline,
     );
     lastUserId = initialUser?.id;
     lastUserEmail = initialUser?.email;
@@ -127,9 +148,13 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
         final previousUserEmail = lastUserEmail;
         final previousSessionExists = lastSessionExists;
 
+        // Check connectivity status for this event
+        final currentIsOnline = await connectivityService.isOnline();
+
         debugPrint('');
         debugPrint('═══════════════════════════════════════════════════════');
         debugPrint('Auth state changed: ${authState.event}');
+        debugPrint('  Connectivity: ${currentIsOnline ? "online" : "offline"}');
         debugPrint('═══════════════════════════════════════════════════════');
         final session = authState.session;
         final user = authState.session?.user;
@@ -190,21 +215,55 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
           supabase,
           user,
           session,
+          currentIsOnline,
         );
 
         yield AuthRoutingState(
           routeState: routeState,
           user: user,
           session: session,
+          isOffline: !currentIsOnline,
         );
       } catch (e, stackTrace) {
+        // Check if offline before handling error
+        final currentIsOnline = await connectivityService.isOnline();
+
         // Handle errors gracefully
         final errorMessage = errorHandler.handleAuthError(e);
 
-        yield AuthRoutingState(
-          routeState: AuthRouteState.unauthenticated,
-          errorMessage: errorMessage,
-        );
+        // If offline and we have a cached session, preserve it
+        final hasCachedSession = await _hasCachedSession(secureStorage);
+        final shouldPreserveSession = !currentIsOnline && hasCachedSession;
+
+        if (shouldPreserveSession) {
+          // Preserve cached session when offline
+          final cachedSession = supabase.auth.currentSession;
+          final cachedUser = supabase.auth.currentUser;
+          debugPrint(
+              '  ⚠️ Offline error but cached session exists - preserving session');
+
+          final routeState = await _determineRouteState(
+            supabase,
+            cachedUser,
+            cachedSession,
+            currentIsOnline,
+          );
+
+          yield AuthRoutingState(
+            routeState: routeState,
+            user: cachedUser,
+            session: cachedSession,
+            isOffline: true,
+            errorMessage:
+                null, // Don't show error when preserving offline session
+          );
+        } else {
+          yield AuthRoutingState(
+            routeState: AuthRouteState.unauthenticated,
+            errorMessage: errorMessage,
+            isOffline: !currentIsOnline,
+          );
+        }
 
         // Log error for debugging
         errorHandler.logError(e, stackTrace);
@@ -215,9 +274,38 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
     debugPrint('ERROR in authStateProvider initialization: $e');
     errorHandler.logError(e, stackTrace);
 
+    // Check if offline and preserve cached session if available
+    final isOnline = await connectivityService.isOnline();
+    final hasCachedSession = await _hasCachedSession(secureStorage);
+
+    if (!isOnline && hasCachedSession) {
+      final cachedSession = supabase.auth.currentSession;
+      final cachedUser = supabase.auth.currentUser;
+      debugPrint(
+          '  ⚠️ Initialization error while offline - attempting to use cached session');
+
+      if (cachedSession != null && cachedUser != null) {
+        final routeState = await _determineRouteState(
+          supabase,
+          cachedUser,
+          cachedSession,
+          isOnline,
+        );
+
+        yield AuthRoutingState(
+          routeState: routeState,
+          user: cachedUser,
+          session: cachedSession,
+          isOffline: true,
+        );
+        return;
+      }
+    }
+
     yield AuthRoutingState(
       routeState: AuthRouteState.unauthenticated,
       errorMessage: errorHandler.handleAuthError(e),
+      isOffline: !isOnline,
     );
   }
 }
@@ -230,85 +318,70 @@ Stream<AuthRoutingState> authState(AuthStateRef ref) async* {
 /// - Checks if biometric authentication is enabled and required
 /// - If biometrics are enabled, prompts for biometric authentication before recovery
 /// - Handles refresh_token_not_found as expected expiration (silently clears storage)
+/// - Preserves cached sessions when offline (network errors don't clear session)
 Future<void> _hydrateSession(
   SupabaseClient supabase,
   SecureStorageService secureStorage,
   BiometricService biometricService,
+  AuthErrorHandler errorHandler,
+  bool isOnline,
 ) async {
   final supabaseStorage = SupabaseSecureStorage();
 
-  try {
-    // First, check if Supabase already has a hydrated session
-    final currentSession = supabase.auth.currentSession;
-    if (currentSession != null) {
-      debugPrint(
-        '  ✓ Supabase already has a hydrated session - skipping manual hydration',
+  // First, check if Supabase already has a hydrated session
+  final currentSession = supabase.auth.currentSession;
+  if (currentSession != null) {
+    debugPrint(
+      '  ✓ Supabase already has a hydrated session - skipping manual hydration',
+    );
+    await _mirrorSupabaseSessionToBiometricCache(
+      secureStorage,
+      supabaseStorage: supabaseStorage,
+    );
+    return;
+  }
+
+  // Check if Supabase has a persisted session in its storage
+  final hasSupabaseSession = await supabaseStorage.hasSessionJson();
+
+  if (!hasSupabaseSession) {
+    debugPrint(
+        '  No stored session found in Supabase storage - user needs to sign in');
+    // Also clear any custom storage to keep them in sync
+    await secureStorage.clearSession();
+    return;
+  }
+
+  debugPrint('  ✓ Stored session found in Supabase storage - recovering...');
+  final sessionJson = await supabaseStorage.getSessionJson();
+  if (sessionJson == null || sessionJson.isEmpty) {
+    debugPrint('  ✗ Session JSON missing despite storage flag - clearing');
+    await secureStorage.clearSession();
+    await supabaseStorage.removePersistedSession();
+    return;
+  }
+
+  // Check if biometric authentication is enabled
+  final biometricEnabled = await secureStorage.isBiometricEnabled();
+  if (biometricEnabled) {
+    // Check if biometrics are available
+    final isAvailable = await biometricService.isAvailable();
+    if (isAvailable) {
+      // Prompt for biometric authentication
+      final biometricTypeName =
+          await biometricService.getAvailableBiometricTypeName();
+      final authenticated = await biometricService.authenticate(
+        reason:
+            'Authenticate with ${biometricTypeName ?? 'biometrics'} to access your account',
       );
-      await _mirrorSupabaseSessionToBiometricCache(
-        secureStorage,
-        supabaseStorage: supabaseStorage,
-      );
-      return;
-    }
 
-    // Check if Supabase has a persisted session in its storage
-    final hasSupabaseSession = await supabaseStorage.hasSessionJson();
-
-    if (!hasSupabaseSession) {
-      debugPrint(
-          '  No stored session found in Supabase storage - user needs to sign in');
-      // Also clear any custom storage to keep them in sync
-      await secureStorage.clearSession();
-      return;
-    }
-
-    debugPrint('  ✓ Stored session found in Supabase storage - recovering...');
-    final sessionJson = await supabaseStorage.getSessionJson();
-    if (sessionJson == null || sessionJson.isEmpty) {
-      debugPrint('  ✗ Session JSON missing despite storage flag - clearing');
-      await secureStorage.clearSession();
-      await supabaseStorage.removePersistedSession();
-      return;
-    }
-
-    // Check if biometric authentication is enabled
-    final biometricEnabled = await secureStorage.isBiometricEnabled();
-    if (biometricEnabled) {
-      // Check if biometrics are available
-      final isAvailable = await biometricService.isAvailable();
-      if (isAvailable) {
-        // Prompt for biometric authentication
-        final biometricTypeName =
-            await biometricService.getAvailableBiometricTypeName();
-        final authenticated = await biometricService.authenticate(
-          reason:
-              'Authenticate with ${biometricTypeName ?? 'biometrics'} to access your account',
-        );
-
-        if (!authenticated) {
-          // Biometric authentication failed - clear session and require password login
-          await secureStorage.clearSession();
-          await secureStorage.clearBiometricPreference();
-          // Also clear Supabase's persisted session
-          await supabaseStorage.removePersistedSession();
-          // Also update Supabase profile to disable biometrics
-          try {
-            final user = supabase.auth.currentUser;
-            if (user != null) {
-              await supabase
-                  .from('profiles')
-                  .update({'biometric_enabled': false}).eq('id', user.id);
-            }
-          } catch (e) {
-            // Ignore errors updating profile - user will need to login with password
-          }
-          return;
-        }
-
-        // Biometric authentication succeeded - continue with session recovery
-      } else {
-        // Biometrics no longer available - clear preference
+      if (!authenticated) {
+        // Biometric authentication failed - clear session and require password login
+        await secureStorage.clearSession();
         await secureStorage.clearBiometricPreference();
+        // Also clear Supabase's persisted session
+        await supabaseStorage.removePersistedSession();
+        // Also update Supabase profile to disable biometrics
         try {
           final user = supabase.auth.currentUser;
           if (user != null) {
@@ -317,45 +390,111 @@ Future<void> _hydrateSession(
                 .update({'biometric_enabled': false}).eq('id', user.id);
           }
         } catch (e) {
-          // Ignore errors updating profile
+          // Ignore errors updating profile - user will need to login with password
         }
-      }
-    }
-
-    debugPrint('  Calling Supabase recoverSession()...');
-    try {
-      final response = await supabase.auth.recoverSession(sessionJson);
-      final recoveredSession = response.session;
-
-      if (recoveredSession == null) {
-        debugPrint('  ✗ recoverSession() returned null - clearing storage');
-        await secureStorage.clearSession();
-        await supabaseStorage.removePersistedSession();
         return;
       }
 
-      debugPrint('  ✓ Session recovered for user ${recoveredSession.user.id}');
-      await _mirrorSupabaseSessionToBiometricCache(
-        secureStorage,
-        supabaseStorage: supabaseStorage,
-      );
-    } on AuthException catch (e) {
-      final message = e.message.toLowerCase();
-      final statusCode = (e.statusCode ?? '').toLowerCase();
-      final isRefreshTokenMissing = statusCode == 'refresh_token_not_found' ||
-          message.contains('refresh token not found') ||
-          message.contains('refresh_token_not_found');
-      if (isRefreshTokenMissing) {
+      // Biometric authentication succeeded - continue with session recovery
+    } else {
+      // Biometrics no longer available - clear preference
+      await secureStorage.clearBiometricPreference();
+      try {
+        final user = supabase.auth.currentUser;
+        if (user != null) {
+          await supabase
+              .from('profiles')
+              .update({'biometric_enabled': false}).eq('id', user.id);
+        }
+      } catch (e) {
+        // Ignore errors updating profile
+      }
+    }
+  }
+
+  debugPrint('  Calling Supabase recoverSession()...');
+  try {
+    final response = await supabase.auth.recoverSession(sessionJson);
+    final recoveredSession = response.session;
+
+    if (recoveredSession == null) {
+      debugPrint('  ✗ recoverSession() returned null - clearing storage');
+      // Only clear if online - offline might be preventing recovery
+      if (isOnline) {
+        await secureStorage.clearSession();
+        await supabaseStorage.removePersistedSession();
+      } else {
         debugPrint(
-            '  Refresh token not found (expected expiration) - clearing storage');
-        await secureStorage.clearSession();
-        await supabaseStorage.removePersistedSession();
-        return;
+            '  ⚠️ Offline - preserving cached session despite null recovery');
       }
-      rethrow;
+      return;
     }
+
+    debugPrint('  ✓ Session recovered for user ${recoveredSession.user.id}');
+    await _mirrorSupabaseSessionToBiometricCache(
+      secureStorage,
+      supabaseStorage: supabaseStorage,
+    );
+  } on SocketException {
+    // Network error - preserve session if offline
+    if (!isOnline) {
+      debugPrint(
+          '  ⚠️ SocketException while offline - preserving cached session');
+      return;
+    }
+    // Online but network error - still preserve session (might be transient)
+    debugPrint(
+        '  ⚠️ SocketException - preserving cached session (may be transient)');
+    rethrow;
+  } on TimeoutException {
+    // Timeout - preserve session if offline
+    if (!isOnline) {
+      debugPrint(
+          '  ⚠️ TimeoutException while offline - preserving cached session');
+      return;
+    }
+    debugPrint(
+        '  ⚠️ TimeoutException - preserving cached session (may be transient)');
+    rethrow;
+  } on AuthException catch (e) {
+    final message = e.message.toLowerCase();
+    final statusCode = (e.statusCode ?? '').toLowerCase();
+    final isRefreshTokenMissing = statusCode == 'refresh_token_not_found' ||
+        message.contains('refresh token not found') ||
+        message.contains('refresh_token_not_found');
+
+    if (isRefreshTokenMissing) {
+      // Always clear on refresh_token_not_found (true expiration)
+      debugPrint(
+          '  Refresh token not found (expected expiration) - clearing storage');
+      await secureStorage.clearSession();
+      await supabaseStorage.removePersistedSession();
+      return;
+    }
+
+    // Check if this is a network error
+    final messageLower = e.message.toLowerCase();
+    final isNetworkError = messageLower.contains('network') ||
+        messageLower.contains('connection') ||
+        messageLower.contains('timeout') ||
+        messageLower.contains('socket');
+
+    if (isNetworkError && !isOnline) {
+      // Network error while offline - preserve cached session
+      debugPrint(
+          '  ⚠️ Network error while offline - preserving cached session');
+      return;
+    }
+
+    rethrow;
   } catch (e) {
-    // If hydration fails, clear stored session
+    // If hydration fails due to network while offline, preserve session
+    if (!isOnline) {
+      debugPrint(
+          '  ⚠️ Hydration error while offline - preserving cached session: $e');
+      return;
+    }
+    // If hydration fails while online, clear stored session
     debugPrint('  ✗ Session hydration failed: $e');
     await secureStorage.clearSession();
     // Don't throw - let user authenticate fresh
@@ -374,10 +513,14 @@ Future<void> _mirrorSupabaseSessionToBiometricCache(
 }
 
 /// Determine the appropriate route state based on user status
+///
+/// When offline, allows authenticated users to remain authenticated even if
+/// session refresh fails, as long as there's a cached session.
 Future<AuthRouteState> _determineRouteState(
   SupabaseClient supabase,
   User? user,
   Session? session,
+  bool isOnline,
 ) async {
   // No user or session - unauthenticated
   if (user == null || session == null) {
@@ -410,15 +553,24 @@ Future<AuthRouteState> _determineRouteState(
   //     return AuthRouteState.onboarding;
   //   }
   // } catch (e) {
-  //   // If query fails, assume onboarding needed
+  //   // If query fails while offline, allow authenticated state
   //   // This handles edge cases where profile creation might be delayed
-  //   // Don't log this as an error - it's an expected edge case
+  //   // or network is unavailable
+  //   if (!isOnline) {
+  //     return AuthRouteState.authenticated;
+  //   }
   //   return AuthRouteState.onboarding;
   // }
 
   // User is authenticated, verified, and onboarded
   // (Onboarding check bypassed - always return authenticated after verification)
   return AuthRouteState.authenticated;
+}
+
+/// Check if there's a cached session available
+Future<bool> _hasCachedSession(SecureStorageService secureStorage) async {
+  final supabaseStorage = SupabaseSecureStorage();
+  return await supabaseStorage.hasSessionJson();
 }
 
 /// Provider for current auth routing state (non-stream, synchronous access)
